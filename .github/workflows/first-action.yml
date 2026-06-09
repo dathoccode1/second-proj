@@ -1,0 +1,20 @@
+name: first-test
+on: push
+jobs:
+  checking:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v3
+
+      - name: Install Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install Dependency
+        run: npm ci
+
+      - name: Run Tests
+        run: npm test
