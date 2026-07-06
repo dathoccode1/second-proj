@@ -1,0 +1,41 @@
+2024-01-15 00:00:01 INFO  [scheduler]    Nightly backup job started
+2024-01-15 00:03:22 INFO  [backup]       Database dump completed: 2.3GB
+2024-01-15 00:07:45 INFO  [backup]       Uploaded to s3://backups/db/2024-01-15.sql.gz
+2024-01-15 00:07:46 INFO  [scheduler]    Nightly backup job completed (6m45s)
+2024-01-15 01:15:03 INFO  [api]          User 4821 logged in from 113.185.44.22
+2024-01-15 01:15:44 INFO  [api]          User 4821 placed order #ORD-20240115-0001 ($124.50)
+2024-01-15 01:16:02 INFO  [payment]      Payment processed for order #ORD-20240115-0001 via Stripe
+2024-01-15 01:16:03 INFO  [notify]       Confirmation email queued for user 4821
+2024-01-15 02:00:00 INFO  [scheduler]    Session cleanup job started
+2024-01-15 02:00:01 INFO  [scheduler]    Expired 143 sessions
+2024-01-15 02:14:55 WARN  [db]           Slow query detected (1243ms): SELECT * FROM products WHERE category_id IN (...)
+2024-01-15 03:00:00 INFO  [scheduler]    Cache warm-up job started
+2024-01-15 03:00:08 INFO  [cache]        Warmed 2841 product cache entries
+2024-01-15 03:00:09 INFO  [scheduler]    Cache warm-up completed (9s)
+2024-01-15 04:22:11 INFO  [api]          User 1033 (admin) exported orders CSV: 3421 rows
+2024-01-15 04:22:15 INFO  [audit]        Admin action: user 1033 exported sensitive data
+2024-01-15 05:30:00 INFO  [scheduler]    Stock alert check started
+2024-01-15 05:30:04 INFO  [inventory]    Low stock alert: product SKU-8821 (qty: 3, threshold: 10)
+2024-01-15 05:30:04 INFO  [notify]       Stock alert email sent to warehouse@company.com
+2024-01-15 06:00:00 INFO  [scheduler]    Analytics aggregation job started
+2024-01-15 06:04:31 INFO  [analytics]    Daily stats: 1,284 visits | 342 orders | $41,820 revenue
+2024-01-15 06:04:32 INFO  [scheduler]    Analytics aggregation completed (4m32s)
+2024-01-15 07:18:22 INFO  [api]          User 9902 registered (email: alice@example.com)
+2024-01-15 07:18:23 INFO  [notify]       Welcome email queued for user 9902
+2024-01-15 08:45:00 INFO  [deploy]       Deployment started: v1.4.2 -> staging
+2024-01-15 08:45:33 INFO  [deploy]       Health check passed on web-01
+2024-01-15 08:46:01 INFO  [deploy]       Health check passed on web-02
+2024-01-15 08:46:29 INFO  [deploy]       Health check passed on web-03
+2024-01-15 08:46:30 INFO  [deploy]       Deployment complete: 3/3 nodes updated
+2024-01-15 09:02:14 WARN  [api]          Rate limit hit: IP 45.33.32.156 (>100 req/min)
+2024-01-15 09:02:14 INFO  [security]     Temporary block applied: 45.33.32.156 (10 min)
+2024-01-15 10:00:00 INFO  [scheduler]    SSL certificate check started
+2024-01-15 10:00:02 INFO  [ssl]          app.company.com: valid, expires in 87 days
+2024-01-15 10:00:02 INFO  [ssl]          api.company.com: valid, expires in 87 days
+2024-01-15 10:00:02 INFO  [ssl]          admin.company.com: valid, expires in 87 days
+2024-01-15 11:30:44 INFO  [api]          User 1033 (admin) changed role of user 7712: viewer -> editor
+2024-01-15 11:30:44 INFO  [audit]        Admin action: permission change for user 7712
+2024-01-15 12:00:00 INFO  [scheduler]    Midday report generated
+2024-01-15 13:44:09 ERROR [payment]      Webhook delivery failed for order #ORD-20240115-0087 (timeout)
+2024-01-15 13:44:09 INFO  [payment]      Webhook retry scheduled in 5 minutes
+2024-01-15 13:49:11 INFO  [payment]      Webhook retry succeeded for order #ORD-20240115-0087

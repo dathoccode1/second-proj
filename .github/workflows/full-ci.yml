@@ -1,0 +1,278 @@
+﻿runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/*
+      - release/*
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Print Build Info
+    steps:
+      - sh: |
+          echo "======================================="
+          echo "  BUILD INFORMATION"
+          echo "======================================="
+          echo "Branch    : $gitRef"
+          echo "Commit    : $gitCheckoutSHA"
+          echo "Build #   : $BUILD_NUMBER"
+          echo "Runner    : $(hostname)"
+          echo "Date      : $(date)"
+          echo "======================================="
+      - sh: |
+          echo "======================================="
+      - sh: |
+          echo "======================================="                 
+
+  - name: Read Config & Changelog
+    steps:
+      - sh: |
+          echo "=== App Configuration ==="
+          cat .github/workflows/examples/app.config
+          echo ""
+          echo "=== Latest Changes ==="
+          cat .github/workflows/examples/changelog.txt
+
+  - name: Validate Environment
+    steps:
+      - sh: |
+          echo "=== Validating build environment ==="
+          echo "Checking required tools..."
+          echo "  java    : $(java -version 2>&1 | head -1 || echo 'not found')"
+          echo "  gradle  : OK (wrapper)"
+          echo "  docker  : OK"
+          echo "  git     : $(git --version)"
+          echo ""
+          echo "Checking environment variables..."
+          echo "  JAVA_HOME     : ${JAVA_HOME:-not set}"
+          echo "  GRADLE_OPTS   : ${GRADLE_OPTS:-not set}"
+          echo "  DOCKER_HOST   : ${DOCKER_HOST:-default}"
+          echo "Environment validation complete."
+
+  - name: Restore Cache
+    steps:
+      - sh: |
+          echo "=== Restoring Gradle cache ==="
+          echo "Cache key: gradle-$(cat .github/workflows/examples/version.txt)-$(date +%Y%m%d)"
+          echo "Checking cache store..."
+          echo "Cache hit: ~/.gradle/caches/modules-2 (1.2GB)"
+          echo "Cache restored successfully."
+
+  - name: Compile
+    steps:
+      - sh: |
+          echo "=== Compiling source code ==="
+          echo "Running: ./gradlew classes"
+          echo "> Task :compileJava"
+          echo "  Compiling 142 Java source files..."
+          echo "> Task :processResources"
+          echo "  Copying 18 resource files..."
+          echo "> Task :classes"
+          echo ""
+          echo "BUILD SUCCESSFUL in 18s"
+          echo "3 actionable tasks: 3 executed"
+
+  - name: Code Quality
+    parallel: true
+    blocks:
+      - name: Checkstyle
+        steps:
+          - sh: |
+              echo "=== Running Checkstyle ==="
+              echo "> Task :checkstyleMain"
+              echo "  Checking 142 files..."
+              echo "  [PASS] src/main/java/com/app/service/UserService.java"
+              echo "  [PASS] src/main/java/com/app/service/OrderService.java"
+              echo "  [PASS] src/main/java/com/app/controller/ApiController.java"
+              echo "  [PASS] src/main/java/com/app/repository/ProductRepository.java"
+              echo "  No Checkstyle violations found."
+
+      - name: SpotBugs
+        steps:
+          - sh: |
+              echo "=== Running SpotBugs ==="
+              echo "> Task :spotbugsMain"
+              echo "  Analysing classes with SpotBugs 4.8.3..."
+              echo "  Scanning 142 class files..."
+              echo "  0 bugs found."
+              echo "SpotBugs analysis passed."
+
+      - name: PMD
+        steps:
+          - sh: |
+              echo "=== Running PMD ==="
+              echo "> Task :pmdMain"
+              echo "  Using ruleset: rulesets/java/quickstart.xml"
+              echo "  Checking 142 source files..."
+              echo "  0 rule violations found."
+              echo "PMD check passed."
+
+      - name: Dependency Check
+        steps:
+          - sh: |
+              echo "=== Dependency vulnerability scan ==="
+              cat .github/workflows/examples/dependencies.txt
+              echo ""
+              echo "Scanning 7 dependencies against NVD database..."
+              echo "  spring-boot:3.2.1       - no known CVEs"
+              echo "  lombok:1.18.30          - no known CVEs"
+              echo "  jackson-databind:2.16.0 - no known CVEs"
+              echo "  postgresql-driver:42.7.1- no known CVEs"
+              echo "  redis-client:3.9.0      - no known CVEs"
+              echo "  junit:5.10.1            - no known CVEs"
+              echo "  mockito:5.8.0           - no known CVEs"
+              echo "No vulnerabilities found."
+
+  - name: Test
+    parallel: true
+    blocks:
+      - name: Unit Tests
+        steps:
+          - sh: |
+              echo "=== Running Unit Tests ==="
+              cat .github/workflows/examples/test-report.txt
+              echo ""
+              echo "> Task :test"
+              echo "BUILD SUCCESSFUL"
+
+      - name: Integration Tests
+        steps:
+          - sh: |
+              echo "=== Running Integration Tests ==="
+              echo "> Task :integrationTest"
+              echo "  Starting embedded PostgreSQL..."
+              echo "  Starting embedded Redis..."
+              echo "  Running 24 integration tests..."
+              echo ""
+              echo "  PASS  UserRepositoryIntTest       (4 tests, 312ms)"
+              echo "  PASS  OrderServiceIntTest         (6 tests, 541ms)"
+              echo "  PASS  PaymentGatewayIntTest       (5 tests, 893ms)"
+              echo "  PASS  CacheIntTest                (4 tests, 228ms)"
+              echo "  PASS  EmailServiceIntTest         (5 tests, 177ms)"
+              echo ""
+              echo "  24 tests passed, 0 failed."
+              echo "BUILD SUCCESSFUL"
+
+      - name: Contract Tests
+        steps:
+          - sh: |
+              echo "=== Running Contract Tests (Pact) ==="
+              echo "Verifying consumer contracts..."
+              echo "  Provider: payment-service"
+              echo "  Consumer: order-service   - 3 interactions - VERIFIED"
+              echo "  Consumer: admin-dashboard - 2 interactions - VERIFIED"
+              echo ""
+              echo "  Provider: notification-service"
+              echo "  Consumer: order-service   - 2 interactions - VERIFIED"
+              echo "  Consumer: user-service    - 1 interaction  - VERIFIED"
+              echo ""
+              echo "All 8 contract interactions verified."
+
+  - name: Code Coverage 
+    steps:
+      - sh: |
+          echo "=== Code Coverage Report ==="
+          echo ""
+          echo "Package                              Lines    Branches  Methods"
+          echo "-------------------------------------------------------------------"
+          echo "com.app.service                      94.2%    88.1%     96.0%"
+          echo "com.app.controller                   91.7%    85.3%     93.3%"
+          echo "com.app.repository                   97.8%    92.0%     98.5%"
+          echo "com.app.domain                       88.4%    79.6%     91.2%"
+          echo "com.app.util                         82.1%    74.8%     85.7%"
+          echo "-------------------------------------------------------------------"
+          echo "TOTAL                                91.8%    84.4%     93.4%"
+          echo ""
+          echo "Coverage threshold (80%) - PASSED"
+
+  - name: Build JAR
+    steps:
+      - sh: |
+          echo "=== Building application JAR ==="
+          echo "> Task :bootJar"
+          echo "  Assembling build/libs/my-app-$(cat .github/workflows/examples/version.txt).jar..."
+          echo "  Including 142 classes"
+          echo "  Including 18 resources"
+          echo "  Including 7 dependencies"
+          echo ""
+          echo "JAR size: 48.3 MB"
+          echo "BUILD SUCCESSFUL"
+
+  - name: Build Docker Image
+    steps:
+      - sh: |
+          echo "=== Building Docker image ==="
+          echo "FROM eclipse-temurin:21-jre-alpine"
+          echo "COPY build/libs/my-app-$(cat .github/workflows/examples/version.txt).jar app.jar"
+          echo ""
+          echo "Step 1/5 : FROM eclipse-temurin:21-jre-alpine"
+          echo "Step 2/5 : RUN addgroup -S appgroup && adduser -S appuser -G appgroup"
+          echo "Step 3/5 : WORKDIR /app"
+          echo "Step 4/5 : COPY app.jar ."
+          echo "Step 5/5 : ENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]"
+          echo ""
+          echo "Successfully built a3f9c28d11b4"
+          echo "Successfully tagged my-app:$(cat .github/workflows/examples/version.txt)"
+
+  - name: Push Image
+    steps:
+      - sh: |
+          echo "=== Pushing image to registry ==="
+          echo "Pushing my-app:$(cat .github/workflows/examples/version.txt) to registry.internal..."
+          echo "  Pushing layer sha256:a1b2c3... - pushed"
+          echo "  Pushing layer sha256:d4e5f6... - pushed"
+          echo "  Pushing layer sha256:g7h8i9... - pushed"
+          echo "  Pushing manifest"
+          echo "Image pushed successfully."
+
+  - name: Generate Reports
+    parallel: true
+    blocks:
+      - name: Test Summary
+        steps:
+          - sh: |
+              echo "=== Test Summary ==="
+              echo "Unit tests        : 47 passed / 0 failed"
+              echo "Integration tests : 24 passed / 0 failed"
+              echo "Contract tests    :  8 verified"
+              echo "Total             : 79 passed / 0 failed"
+
+      - name: Coverage Report
+        steps:
+          - sh: |
+              echo "=== Publishing coverage report ==="
+              echo "Uploading to: https://coverage.internal/my-app/$gitRef"
+              echo "Report published."
+
+      - name: Changelog Diff
+        steps:
+          - sh: |
+              echo "=== Changes included in this build ==="
+              cat .github/workflows/examples/changelog.txt | head -20
+              echo "..."
+
+  - name: Notify QA
+    steps:
+      - sh: |
+          echo "=== Notifying QA team ==="
+          echo "Build artifacts are ready for QA:"
+          echo "  Image : my-app:$(cat .github/workflows/examples/version.txt)"
+          echo "  Branch: $gitRef"
+          echo "  Tests : 79/79 passed"
+          echo "  Cover : 91.8%"
+          echo "QA team notified."
+
+finally:
+  - sh: |
+      echo "=== CI pipeline complete ==="
+      echo "Version : $(cat .github/workflows/examples/version.txt)"
+      echo "Result  : $BUILD_RESULT"
+      echo "Cleaning up workspace..."
+      echo "Done."
+

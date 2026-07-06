@@ -1,0 +1,108 @@
+runner: jenkins-jenkins-agent
+
+inputs:
+  releaseVersion:
+    description: 'Release version tag (e.g. v1.2.3)'
+    required: true
+    type: string
+  deployEnv:
+    description: 'Target deployment environment'
+    required: false
+    type: choice
+    default: 'production'
+    options:
+      - staging
+      - production
+  skipTests:
+    description: 'Skip test stages (emergency use only)'
+    required: false
+    type: boolean
+    default: false
+  replica:
+    description: 'Number of parallel test runners'
+    required: false
+    type: number
+    default: '2'
+
+trigger:
+  push:
+    tags:
+      - v*  
+      - release-?
+  release:
+    actions:
+      - create
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Set Release Version
+    steps:
+      - setEnv:
+          APP_VERSION: $inputs.releaseVersion
+          DEPLOY_ENV: $inputs.deployEnv
+      - sh: |
+          echo "Preparing release $APP_VERSION for $DEPLOY_ENV..."
+
+  - name: Build
+    steps:
+      - sh: |
+          echo "Building release artifact $APP_VERSION..."
+          ./gradlew clean build -x test
+
+  - name: Test
+    parallel: true
+    blocks:
+      - name: Unit Tests
+        steps:
+          - sh: |
+              echo "Running unit tests..."
+              ./gradlew test
+
+      - name: Integration Tests
+        steps:
+          - sh: |
+              echo "Running integration tests..."
+              ./gradlew integrationTest
+
+      - name: Smoke Tests
+        steps:
+          - sh: |
+              echo "Running smoke tests..."
+              ./gradlew smokeTest
+
+  - name: Build & Push Image
+    steps:
+      - buildPushImage:
+          imageName: my-app:$inputs.releaseVersion
+          registry: $config.lib.DOCKER_PULL_REGISTRY
+          credentials: $config.lib.DOCKER_PUSH_CRED_ID
+
+  - name: Deploy
+    container:
+      image: rancher/kubectl
+      options: -e ENV=$inputs.deployEnv
+    steps:
+      - sh: |
+          echo "Deploying $APP_VERSION to $DEPLOY_ENV..."
+          kubectl set image deployment/my-app app=my-app:$APP_VERSION
+          kubectl rollout status deployment/my-app --timeout=300s
+
+  - name: Post-Deploy Verification
+    steps:
+      - sh: |
+          echo "Verifying deployment health..."
+          kubectl get pods -l app=my-app
+          kubectl get svc my-app
+
+finally:
+  - commentPipelineResult:
+      netchatGroupID: $config.lib.NETCHAT_GROUP_ID
+      onSuccess: ":rocket: Release $inputs.releaseVersion deployed to $inputs.deployEnv successfully ([pipeline]($RUN_DISPLAY_URL))"
+      onFail: ":x: Release $inputs.releaseVersion failed on $inputs.deployEnv ([pipeline]($RUN_DISPLAY_URL)) $FAIL_MESSAGE"
+      onAbort: ":warning: Release $inputs.releaseVersion was canceled ([pipeline]($RUN_DISPLAY_URL))"
+  - sh: |
+      echo "Cleaning up release workspace..."
+      rm -rf build/ .gradle/

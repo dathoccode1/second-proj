@@ -1,0 +1,103 @@
+﻿runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - develop
+      - release/*
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Print Environment
+    steps:
+      - sh: |
+          echo "=== Deployment Environment ==="
+          echo "Target: staging"
+          echo "Triggered by: $gitRef"
+          echo "Build number: $BUILD_NUMBER"
+
+  - name: Read App Config
+    steps:
+      - sh: |
+          echo "=== Loading app config ==="
+          cat .github/workflows/examples/app.config
+          echo ""
+          echo "Config loaded successfully."
+
+  - name: Read Server List
+    steps:
+      - sh: |
+          echo "=== Target servers ==="
+          cat .github/workflows/examples/servers.txt
+          echo ""
+          echo "Found $(cat .github/workflows/examples/servers.txt | wc -l) servers in inventory."
+
+  - name: Pre-deploy Checks
+    steps:
+      - sh: |
+          echo "=== Running pre-deploy checks ==="
+          echo "Checking disk space on staging servers..."
+          echo "  web-01: 42GB free - OK"
+          echo "  web-02: 38GB free - OK"
+          echo "  web-03: 51GB free - OK"
+          echo "Checking network connectivity..."
+          echo "  All nodes reachable - OK"
+          echo "Pre-deploy checks passed."
+
+  - name: Backup Current Version
+    steps:
+      - sh: |
+          echo "=== Backing up current deployment ==="
+          cat .github/workflows/examples/version.txt
+          echo "Snapshotting current pods..."
+          echo "Backup saved to s3://backups/staging/$(cat .github/workflows/examples/version.txt)"
+          echo "Backup complete."
+
+  - name: Pull Image
+    steps:
+      - sh: |
+          echo "=== Pulling Docker image ==="
+          echo "Registry: registry.internal"
+          echo "Image: my-app:$(cat .github/workflows/examples/version.txt)"
+          echo "Pulling..."
+          echo "Image pulled successfully."
+
+  - name: Rolling Deploy
+    steps:
+      - sh: |
+          echo "=== Starting rolling deployment ==="
+          echo "Deploying to web-01 (10.0.1.10)..."
+          echo "  web-01 health check: PASS"
+          echo "Deploying to web-02 (10.0.1.11)..."
+          echo "  web-02 health check: PASS"
+          echo "Deploying to web-03 (10.0.1.12)..."
+          echo "  web-03 health check: PASS"
+          echo "Rolling deployment complete. 3/3 nodes updated."
+
+  - name: Smoke Test
+    steps:
+      - sh: |
+          echo "=== Running smoke tests against staging ==="
+          echo "GET /health           -> 200 OK"
+          echo "GET /api/v1/ping      -> 200 OK"
+          echo "GET /api/v1/version   -> 200 OK"
+          echo "POST /api/v1/login    -> 200 OK"
+          echo "All smoke tests passed."
+
+  - name: Print Summary
+    steps:
+      - sh: |
+          echo "=== Deployment Summary ==="
+          echo "Version : $(cat .github/workflows/examples/version.txt)"
+          echo "Env     : staging"
+          echo "Nodes   : 3/3 updated"
+          echo "Status  : SUCCESS"
+
+finally:
+  - sh: |
+      echo "=== Staging deploy pipeline done ==="
+      echo "Cleaning up temp files..."
+

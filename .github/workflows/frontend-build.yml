@@ -1,0 +1,91 @@
+﻿runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/*
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Read Config
+    steps:
+      - sh: |
+          echo "=== Reading app config ==="
+          cat .github/workflows/examples/app.config
+
+  - name: Check Version
+    steps:
+      - sh: |
+          echo "=== Current version ==="
+          cat .github/workflows/examples/version.txt
+          echo "Building frontend for version: $(cat .github/workflows/examples/version.txt)"
+
+  - name: Install Dependencies
+    steps:
+      - sh: |
+          echo "=== Installing dependencies ==="
+          cat .github/workflows/examples/dependencies.txt
+          echo ""
+          echo "All dependencies listed above will be installed..."
+          echo "Resolving dependency tree..."
+          echo "Dependencies resolved successfully."
+
+  - name: Lint
+    steps:
+      - sh: |
+          echo "=== Running ESLint ==="
+          echo "Checking src/index.js... OK"
+          echo "Checking src/app.js... OK"
+          echo "Checking src/components/Header.js... OK"
+          echo "Checking src/components/Footer.js... OK"
+          echo "No lint errors found."
+
+  - name: Unit Test
+    steps:
+      - sh: |
+          echo "=== Running unit tests ==="
+          echo "PASS src/__tests__/Header.test.js"
+          echo "PASS src/__tests__/Footer.test.js"
+          echo "PASS src/__tests__/utils.test.js"
+          echo ""
+          echo "Test Suites: 3 passed, 3 total"
+          echo "Tests:       12 passed, 12 total"
+
+  - name: Build
+    steps:
+      - sh: |
+          echo "=== Building frontend bundle ==="
+          echo "Compiling TypeScript..."
+          echo "Bundling assets..."
+          echo "Minifying CSS..."
+          echo "Generating source maps..."
+          echo "Build completed. Output in dist/"
+
+  - name: Check Bundle Size
+    steps:
+      - sh: |
+          echo "=== Bundle size report ==="
+          echo "dist/main.js       342 KB"
+          echo "dist/vendor.js     891 KB"
+          echo "dist/styles.css     56 KB"
+          echo "Total:            1289 KB"
+          echo "Bundle size within acceptable limits."
+
+  - name: Upload Artifacts
+    steps:
+      - sh: |
+          echo "=== Uploading build artifacts ==="
+          echo "Uploading dist/ to artifact storage..."
+          echo "Upload complete."
+
+finally:
+  - sh: |
+      echo "=== Frontend build pipeline finished ==="
+      echo "Branch: $gitRef"
+      echo "Cleaning workspace..."
+

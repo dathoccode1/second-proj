@@ -1,0 +1,163 @@
+﻿runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+          ref: $env.gitRef
+
+  - name: Print Job Info
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  LOG ANALYSIS PIPELINE"
+          echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          echo "Branch  : $gitRef"
+          echo "Build # : $BUILD_NUMBER"
+          echo "Node    : $(hostname)"
+
+  - name: Inspect Log File
+    steps:
+      - sh: |
+          echo "=== Log file info ==="
+          ls -lh .github/workflows/examples/app-server.log
+          echo ""
+          TOTAL=$(wc -l < .github/workflows/examples/app-server.log)
+          echo "Total lines : $TOTAL"
+          echo "Period      : $(head -1 .github/workflows/examples/app-server.log | cut -d' ' -f1,2) -> $(tail -1 .github/workflows/examples/app-server.log | cut -d' ' -f1,2)"
+          echo ""
+          echo "=== First 5 lines ==="
+          head -5 .github/workflows/examples/app-server.log
+          echo ""
+          echo "=== Last 5 lines ==="
+          tail -5 .github/workflows/examples/app-server.log
+
+  - name: Quick Stats
+    parallel: true
+    blocks:
+      - name: Level Distribution
+        steps:
+          - sh: |
+              echo "=== Log level distribution ==="
+              for level in DEBUG INFO WARN ERROR; do
+                count=$(grep -c " $level " .github/workflows/examples/app-server.log || true)
+                echo "  $level : $count lines"
+              done
+
+      - name: Top Errors
+        steps:
+          - sh: |
+              echo "=== ERROR entries (first 10) ==="
+              grep " ERROR " .github/workflows/examples/app-server.log | head -10
+
+      - name: Slow Queries
+        steps:
+          - sh: |
+              echo "=== WARN slow queries (first 8) ==="
+              grep "Slow query" .github/workflows/examples/app-server.log | head -8
+
+      - name: Auth Events
+        steps:
+          - sh: |
+              echo "=== Authentication events (first 10) ==="
+              grep "authenticated successfully" .github/workflows/examples/app-server.log | head -10
+
+  - name: Stream Log
+    steps:
+      - sh: |
+          LOGFILE=".github/workflows/examples/app-server.log"
+          BATCH=40
+          TOTAL=$(wc -l < "$LOGFILE")
+          echo "=== Streaming $TOTAL lines at 40 lines/sec ==="
+          line=1
+          batch=1
+          while [ $line -le $TOTAL ]; do
+            batch_end=$((line + BATCH - 1))
+            [ $batch_end -gt $TOTAL ] && batch_end=$TOTAL
+            echo "--- Batch $batch: lines $line-$batch_end ---"
+            sed -n "${line},${batch_end}p" "$LOGFILE"
+            line=$((line + BATCH))
+            batch=$((batch + 1))
+            sleep 1
+          done
+          echo "Stream complete. Total batches: $((batch - 1))"
+
+  - name: Analyze Results
+    parallel: true
+    blocks:
+      - name: Error Summary    
+        steps:
+          - sh: |
+              echo "=== Error analysis ==="
+              total=$(wc -l < .github/workflows/examples/app-server.log)
+              errors=$(grep -c " ERROR " .github/workflows/examples/app-server.log || true)
+              warns=$(grep -c " WARN  " .github/workflows/examples/app-server.log || true)
+              echo "Total lines : $total"
+              echo "Errors      : $errors"
+              echo "Warnings    : $warns"
+              echo ""
+              echo "Error breakdown:"
+              grep " ERROR " .github/workflows/examples/app-server.log | \
+                grep -o 'java\.[^:]*\|org\.[^:]*\|com\.[^:]*' | \
+                sort | uniq -c | sort -rn | head -10
+
+      - name: Payment Failures
+        steps:
+          - sh: |
+              echo "=== Payment failure events ==="
+              grep -i "payment\|stripe\|CardException" .github/workflows/examples/app-server.log | \
+                grep -i "ERROR\|WARN\|failed\|declined" | head -15
+
+      - name: Hourly Traffic
+        steps:
+          - sh: |
+              echo "=== Hourly request volume ==="
+              for h in 00 02 04 06 08 10 12 14 16 18 20 22; do
+                count=$(grep "^2024-01-15 $h:" .github/workflows/examples/app-server.log | wc -l)
+                bar=$(printf '%*s' $((count / 2)) '' | tr ' ' '#')
+                printf "  %s:xx  %4d  %s\n" "$h" "$count" "$bar"
+              done
+
+      - name: Cache Performance
+        steps:
+          - sh: |
+              echo "=== Cache performance ==="
+              hits=$(grep -c "Cache hit" .github/workflows/examples/app-server.log || true)
+              misses=$(grep -c "Cache miss" .github/workflows/examples/app-server.log || true)
+              evictions=$(grep -c "Evicting cache" .github/workflows/examples/app-server.log || true)
+              total=$((hits + misses))
+              if [ $total -gt 0 ]; then
+                rate=$((hits * 100 / total))
+                echo "  Cache hits     : $hits"
+                echo "  Cache misses   : $misses"
+                echo "  Hit rate       : ${rate}%"
+                echo "  Evictions      : $evictions"
+              fi
+
+  - name: Final Report
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  LOG ANALYSIS COMPLETE"
+          echo "============================================"
+          TOTAL=$(wc -l < .github/workflows/examples/app-server.log)
+          echo "File        : app-server.log"
+          echo "Total lines : $TOTAL"
+          echo "Streamed    : 40 lines/batch, 1 sec/batch"
+          echo ""
+          echo "Period covered:"
+          echo "  From : $(head -1 .github/workflows/examples/app-server.log | awk '{print $1, $2}')"
+          echo "  To   : $(tail -1 .github/workflows/examples/app-server.log | awk '{print $1, $2}')"
+          echo "============================================"
+
+finally:
+  - sh: |
+      echo "=== Log analysis pipeline finished ==="
+

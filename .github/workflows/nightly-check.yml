@@ -1,0 +1,124 @@
+﻿runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: System Info
+    steps:  
+      - sh: |
+          echo "=== System Information ==="
+          echo "Date: $(date)"
+          echo "Hostname: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Working dir: $(pwd)"
+
+  - name: Load Config
+    steps:
+      - sh: |
+          echo "=== Loading configuration ==="
+          cat .github/workflows/examples/app.config
+          echo ""
+          echo "Configuration loaded."
+
+  - name: Check Dependencies
+    steps:
+      - sh: |
+          echo "=== Dependency audit ==="
+          cat .github/workflows/examples/dependencies.txt
+          echo ""
+          echo "Checking for outdated packages..."
+          echo "  spring-boot:3.2.1   -> latest: 3.2.4  [UPDATE AVAILABLE]"
+          echo "  lombok:1.18.30      -> latest: 1.18.30 [UP TO DATE]"
+          echo "  jackson-databind    -> latest: 2.16.1  [UPDATE AVAILABLE]"
+          echo "Audit complete. 2 packages can be updated."
+
+  - name: Check Disk Usage
+    steps:
+      - sh: |
+          echo "=== Disk usage report ==="
+          echo "Filesystem       Size  Used Avail Use%"
+          echo "/dev/sda1         50G   21G   27G  44%  /"
+          echo "/dev/sdb1        200G   88G  101G  47%  /data"
+          echo "/dev/sdc1        500G  312G  163G  66%  /logs"
+          echo ""
+          echo "All filesystems within acceptable usage."
+
+  - name: Check Log Errors
+    steps:
+      - sh: |
+          echo "=== Scanning logs for errors ==="
+          echo "Checking app.log..."
+          echo "  [INFO]  2024-01-15 00:01:03 Application started"
+          echo "  [WARN]  2024-01-15 02:14:55 Slow query detected (1243ms)"
+          echo "  [INFO]  2024-01-15 06:00:01 Scheduled job completed"
+          echo ""
+          echo "ERROR count last 24h: 0"
+          echo "WARN  count last 24h: 1"
+          echo "Log check passed."
+
+  - name: Database Health
+    steps:
+      - sh: |
+          echo "=== Database health check ==="
+          cat .github/workflows/examples/servers.txt
+          echo ""
+          echo "Checking db-01 (10.0.2.10) PRIMARY..."
+          echo "  Connection: OK"
+          echo "  Replication lag: 0ms"
+          echo "  Active connections: 24/100"
+          echo "Checking db-02 (10.0.2.11) REPLICA..."
+          echo "  Connection: OK"
+          echo "  Replication lag: 12ms"
+          echo "  Active connections: 8/100"
+          echo "Database health: OK"
+
+  - name: Cache Health
+    steps:
+      - sh: |
+          echo "=== Cache health check ==="
+          echo "Checking cache-01 (10.0.3.10)..."
+          echo "  Connection: OK"
+          echo "  Memory used: 1.2GB / 4GB (30%)"
+          echo "  Hit rate: 94.7%"
+          echo "  Keys: 48291"
+          echo "Cache health: OK"
+
+  - name: API Endpoint Check
+    steps:
+      - sh: |
+          echo "=== API health check ==="
+          echo "GET  /health              200  12ms  OK"
+          echo "GET  /api/v1/users        200  45ms  OK"
+          echo "GET  /api/v1/products     200  38ms  OK"
+          echo "POST /api/v1/auth/login   200  89ms  OK"
+          echo "GET  /metrics             200   8ms  OK"
+          echo "All endpoints responding."
+
+  - name: Summary Report
+    steps:
+      - sh: |
+          echo "======================================="
+          echo "         NIGHTLY CHECK REPORT          "
+          echo "======================================="
+          cat .github/workflows/examples/version.txt | xargs -I{} echo "App Version   : {}"
+          echo "Config        : OK"
+          echo "Dependencies  : 2 updates available"
+          echo "Disk          : OK"
+          echo "Logs          : 0 errors"
+          echo "Database      : OK"
+          echo "Cache         : OK"
+          echo "API           : OK"
+          echo "======================================="
+          echo "Overall status: HEALTHY"
+
+finally:
+  - sh: |
+      echo "=== Nightly check pipeline complete ==="
+

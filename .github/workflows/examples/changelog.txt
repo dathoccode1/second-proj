@@ -1,0 +1,65 @@
+===================================================
+               CHANGELOG
+===================================================
+
+[v1.4.2] - 2024-01-15
+  FIXED   Payment webhook signature validation for Stripe v3
+  FIXED   Race condition in order status update under high concurrency
+  FIXED   Memory leak in WebSocket connection pool
+  FIXED   Incorrect tax calculation for EU customers with VAT exemption
+
+[v1.4.1] - 2024-01-08
+  FIXED   Login redirect loop on Safari 17
+  FIXED   Product image upload failing for files > 5MB
+  FIXED   Cache invalidation not triggered on price update
+  CHANGED Increased session timeout from 30min to 60min
+  CHANGED Upgraded spring-boot from 3.2.0 to 3.2.1
+
+[v1.4.0] - 2023-12-20
+  ADDED   Dark mode support across all pages
+  ADDED   Multi-currency checkout (USD, EUR, JPY, VND)
+  ADDED   Product review and rating system
+  ADDED   Real-time order tracking via WebSocket
+  ADDED   Admin dashboard with sales analytics
+  CHANGED Redesigned checkout flow (3-step to 1-page)
+  CHANGED Migrated from REST to GraphQL for product queries
+  CHANGED Search engine replaced with Elasticsearch
+  FIXED   Pagination bug returning duplicate items on page boundary
+  FIXED   Email notifications sent twice on order confirmation
+
+[v1.3.5] - 2023-11-30
+  FIXED   XSS vulnerability in product description field
+  FIXED   SQL injection risk in search query builder
+  FIXED   CSRF token not validated on password change endpoint
+  SECURITY Rotated all internal API keys
+  SECURITY Enforced TLS 1.2+ across all services
+
+[v1.3.4] - 2023-11-22
+  FIXED   Order export to CSV missing last row
+  FIXED   Stock count goes negative under concurrent purchases
+  FIXED   Promo code applied twice when user clicks fast
+  CHANGED Promo code now locked for 5s after first application
+
+[v1.3.3] - 2023-11-10
+  ADDED   Bulk product import via CSV
+  ADDED   Webhook support for order events
+  ADDED   Rate limiting on public API (100 req/min)
+  FIXED   Forgot password email not sent when username contains +
+  FIXED   Dashboard chart renders blank on Firefox 119
+
+[v1.3.2] - 2023-10-28
+  FIXED   404 on product URL after category rename
+  FIXED   Image gallery not loading on slow connections
+  CHANGED Default sort order changed from "newest" to "relevance"
+
+[v1.3.0] - 2023-10-01
+  ADDED   Affiliate/referral program
+  ADDED   Gift card purchase and redemption
+  ADDED   Inventory low-stock alerts via email
+  ADDED   Product bundle / combo pricing
+  CHANGED Checkout requires phone number for SMS updates
+  DEPRECATED  Legacy v1 REST endpoints (removal in v2.0.0)
+
+===================================================
+END OF CHANGELOG
+===================================================
