@@ -1,7 +1,0 @@
-spring-boot:3.2.1
-lombok:1.18.30
-jackson-databind:2.16.0
-postgresql-driver:42.7.1
-redis-client:3.9.0
-junit:5.10.1
-mockito:5.8.0
