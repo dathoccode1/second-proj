@@ -1,0 +1,73 @@
+===================================================
+           TEST EXECUTION REPORT
+           Generated: 2024-01-15 03:42:11
+===================================================
+
+Suite: UserServiceTest
+  PASS  testCreateUser_validInput_returnsCreatedUser          (23ms)
+  PASS  testCreateUser_duplicateEmail_throwsException         (11ms)
+  PASS  testCreateUser_nullName_throwsValidationException     (8ms)
+  PASS  testGetUserById_existingId_returnsUser                (15ms)
+  PASS  testGetUserById_nonExistingId_throwsNotFoundException (9ms)
+  PASS  testUpdateUser_validData_returnsUpdatedUser           (18ms)
+  PASS  testUpdateUser_nonExistingUser_throwsException        (7ms)
+  PASS  testDeleteUser_existingUser_deletesSuccessfully       (12ms)
+  PASS  testListUsers_withPagination_returnsPage              (31ms)
+  PASS  testListUsers_emptyDatabase_returnsEmptyList          (6ms)
+
+Suite: AuthServiceTest
+  PASS  testLogin_validCredentials_returnsToken               (44ms)
+  PASS  testLogin_wrongPassword_throwsAuthException           (22ms)
+  PASS  testLogin_nonExistingUser_throwsAuthException         (9ms)
+  PASS  testLogout_validToken_invalidatesSession              (17ms)
+  PASS  testRefreshToken_validToken_returnsNewToken           (33ms)
+  PASS  testRefreshToken_expiredToken_throwsException         (11ms)
+  PASS  testResetPassword_validEmail_sendsMail                (28ms)
+  PASS  testResetPassword_invalidEmail_throwsException        (8ms)
+
+Suite: ProductServiceTest
+  PASS  testCreateProduct_validData_returnsProduct            (19ms)
+  PASS  testCreateProduct_missingName_throwsException         (7ms)
+  PASS  testGetProduct_existingId_returnsProduct              (13ms)
+  PASS  testGetProduct_deletedProduct_throwsException         (8ms)
+  PASS  testSearchProduct_byKeyword_returnsMatches            (55ms)
+  PASS  testSearchProduct_noMatches_returnsEmpty              (14ms)
+  PASS  testUpdateStock_validAmount_updatesInventory          (21ms)
+  PASS  testUpdateStock_negativeAmount_throwsException        (6ms)
+  PASS  testListProducts_withFilters_returnsFiltered          (42ms)
+  PASS  testDeleteProduct_existingProduct_softDeletes         (11ms)
+
+Suite: OrderServiceTest
+  PASS  testPlaceOrder_validCart_returnsOrderId               (67ms)
+  PASS  testPlaceOrder_outOfStock_throwsException             (24ms)
+  PASS  testPlaceOrder_emptyCart_throwsException              (5ms)
+  PASS  testCancelOrder_pendingOrder_cancelsSuccessfully      (19ms)
+  PASS  testCancelOrder_shippedOrder_throwsException          (8ms)
+  PASS  testGetOrderStatus_existingOrder_returnsStatus        (13ms)
+  PASS  testCalculateTotal_withDiscount_appliesCorrectly      (17ms)
+  PASS  testCalculateTotal_withTax_calculatesCorrectly        (15ms)
+
+Suite: PaymentServiceTest
+  PASS  testProcessPayment_validCard_chargesSuccessfully      (89ms)
+  PASS  testProcessPayment_declinedCard_throwsException       (44ms)
+  PASS  testProcessPayment_expiredCard_throwsException        (12ms)
+  PASS  testRefundPayment_validOrderId_refundsAmount          (71ms)
+  PASS  testRefundPayment_alreadyRefunded_throwsException     (9ms)
+  PASS  testGetPaymentStatus_existingPayment_returnsStatus    (16ms)
+
+Suite: NotificationServiceTest
+  PASS  testSendEmail_validRecipient_sendsSuccessfully        (38ms)
+  PASS  testSendEmail_invalidAddress_throwsException          (7ms)
+  PASS  testSendSms_validNumber_sendsSuccessfully             (52ms)
+  PASS  testSendPushNotification_validToken_pushes            (31ms)
+  PASS  testQueueNotification_offline_queuesForLater          (22ms)
+
+===================================================
+RESULTS SUMMARY
+  Total Suites  : 6
+  Total Tests   : 47
+  Passed        : 47
+  Failed        : 0
+  Skipped       : 0
+  Total Time    : 1.24s
+===================================================

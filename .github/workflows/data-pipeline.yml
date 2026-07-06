@@ -1,0 +1,280 @@
+runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Print Pipeline Info
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  DATA PIPELINE"
+          echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          echo "Branch  : $gitRef"
+          echo "Build # : $BUILD_NUMBER"
+
+  - name: Load Config
+    steps:
+      - sh: |
+          echo "=== Loading configuration ==="
+          cat .viettelcloud/workflows/examples/app.config
+          echo ""
+          echo "=== Server inventory ==="
+          cat .viettelcloud/workflows/examples/servers.txt
+
+  - name: Validate Source Data
+    parallel: true
+    blocks:
+      - name: Check Inventory File
+        steps:
+          - sh: |
+              echo "=== Validating inventory data ==="
+              cat .viettelcloud/workflows/examples/inventory.txt
+              echo ""
+              echo "Row count    : $(cat .viettelcloud/workflows/examples/inventory.txt | grep -c SKU || echo 40)"
+              echo "Format check : PASS"
+              echo "No null SKUs : PASS"
+              echo "Price valid  : PASS"
+
+      - name: Check Audit Log
+        steps:
+          - sh: |
+              echo "=== Validating audit log ==="
+              cat .viettelcloud/workflows/examples/audit-log.txt
+              echo ""
+              echo "Log lines    : $(cat .viettelcloud/workflows/examples/audit-log.txt | wc -l)"
+              echo "Format check : PASS"
+              echo "No gaps      : PASS"
+
+      - name: Check Test Report
+        steps:
+          - sh: |
+              echo "=== Validating test report ==="
+              cat .viettelcloud/workflows/examples/test-report.txt
+              echo ""
+              echo "Suites found : 6"
+              echo "Schema valid : PASS"
+
+  - name: Extract
+    parallel: true
+    blocks:
+      - name: Extract Orders
+        steps:
+          - sh: |
+              echo "=== Extracting orders from DB ==="
+              echo "Connecting to db-01 (10.0.2.10)..."
+              echo "Query: SELECT * FROM orders WHERE created_at >= NOW() - INTERVAL '1 day'"
+              echo "Extracted 1,284 order rows"
+              echo "Saved to /tmp/extract/orders.csv"
+
+      - name: Extract Products
+        steps:
+          - sh: |
+              echo "=== Extracting product data ==="
+              cat .viettelcloud/workflows/examples/inventory.txt | head -5
+              echo "..."
+              echo "Extracted 40 product records"
+              echo "Saved to /tmp/extract/products.csv"
+
+      - name: Extract Users
+        steps:
+          - sh: |
+              echo "=== Extracting user activity ==="
+              echo "Connecting to analytics DB..."
+              echo "Query: SELECT user_id, action, ts FROM events WHERE ts::date = current_date - 1"
+              echo "Extracted 8,441 event rows"
+              echo "Saved to /tmp/extract/events.csv"
+
+      - name: Extract Audit Events
+        steps:
+          - sh: |
+              echo "=== Extracting audit events ==="
+              cat .viettelcloud/workflows/examples/audit-log.txt | tail -20
+              echo ""
+              echo "Extracted 49 audit log entries"
+              echo "Saved to /tmp/extract/audit.csv"
+
+  - name: Transform
+    parallel: true
+    blocks:
+      - name: Transform Orders
+        steps:
+          - sh: |
+              echo "=== Transforming orders ==="
+              echo "Loading /tmp/extract/orders.csv (1,284 rows)..."
+              echo "Normalizing currency to USD..."
+              echo "Joining with product catalog for SKU names..."
+              echo "Calculating order subtotals and tax..."
+              echo "Flagging orders > \$500 as high-value..."
+              echo "  High-value orders found: 87"
+              echo "Output: /tmp/transform/orders_clean.parquet"
+              echo "Transform complete. 1,284 -> 1,284 rows."
+
+      - name: Transform Events
+        steps:
+          - sh: |
+              echo "=== Transforming user events ==="
+              echo "Loading /tmp/extract/events.csv (8,441 rows)..."
+              echo "Parsing event JSON payloads..."
+              echo "Dropping bot traffic..."
+              echo "  Removed 312 bot events"
+              echo "Sessionizing events by user (30-min window)..."
+              echo "  Created 2,019 sessions"
+              echo "Computing time-on-page per session..."
+              echo "Output: /tmp/transform/sessions.parquet"
+              echo "Transform complete. 8,441 -> 8,129 rows."
+
+      - name: Transform Inventory
+        steps:
+          - sh: |
+              echo "=== Transforming inventory snapshot ==="
+              echo "Loading /tmp/extract/products.csv..."
+              echo "Calculating stock value per SKU..."
+              echo "  Total inventory value: \$284,741.22"
+              echo "Flagging low-stock items (qty < 10)..."
+              echo "  Low-stock items: 2"
+              echo "  SKU-0021 (Raspberry Pi 4 4GB): qty=3"
+              echo "  SKU-0031 (GPU RTX 4070)       : qty=7"
+              echo "Output: /tmp/transform/inventory_snapshot.parquet"
+
+      - name: Build Audit Metrics
+        steps:
+          - sh: |
+              echo "=== Building audit metrics ==="
+              echo "Loading /tmp/extract/audit.csv..."
+              echo "Counting events by type..."
+              echo "  INFO  : 42 events"
+              echo "  WARN  :  4 events"
+              echo "  ERROR :  1 event"
+              echo "Counting admin actions..."
+              echo "  Admin actions today: 3"
+              echo "Output: /tmp/transform/audit_metrics.json"
+
+  - name: Load
+    parallel: true
+    blocks:
+      - name: Load to Data Warehouse
+        steps:
+          - sh: |
+              echo "=== Loading to data warehouse ==="
+              echo "Connecting to DW: dw.internal:5439"
+              echo "Loading orders_clean.parquet -> dw.public.orders_daily"
+              echo "  Rows inserted: 1,284"
+              echo "  Rows updated : 0"
+              echo "Loading sessions.parquet -> dw.public.user_sessions"
+              echo "  Rows inserted: 2,019"
+              echo "Loading inventory_snapshot.parquet -> dw.public.inventory"
+              echo "  Rows inserted: 40"
+              echo "DW load complete."
+
+      - name: Load to Reporting DB
+        steps:
+          - sh: |
+              echo "=== Loading to reporting DB ==="
+              echo "Connecting to report-db.internal:5432"
+              echo "Refreshing materialized view: mv_daily_sales..."
+              echo "Refreshing materialized view: mv_product_performance..."
+              echo "Refreshing materialized view: mv_user_funnel..."
+              echo "All 3 views refreshed."
+
+      - name: Update Dashboard Cache
+        steps:
+          - sh: |
+              echo "=== Refreshing dashboard cache ==="
+              echo "Connecting to cache-01 (10.0.3.10)..."
+              echo "Invalidating stale keys..."
+              echo "  Deleted key: dashboard:sales:today"
+              echo "  Deleted key: dashboard:inventory:snapshot"
+              echo "  Deleted key: dashboard:users:active"
+              echo "Pre-warming new values..."
+              echo "  Set dashboard:sales:today      (TTL 3600s)"
+              echo "  Set dashboard:inventory:snapshot (TTL 3600s)"
+              echo "  Set dashboard:users:active     (TTL 3600s)"
+              echo "Cache refreshed."
+
+  - name: Data Quality Checks
+    parallel: true
+    blocks:
+      - name: Completeness Check
+        steps:
+          - sh: |
+              echo "=== Data completeness check ==="
+              echo "orders_daily:"
+              echo "  order_id     : 0 nulls  PASS"
+              echo "  user_id      : 0 nulls  PASS"
+              echo "  total_usd    : 0 nulls  PASS"
+              echo "  created_at   : 0 nulls  PASS"
+              echo "user_sessions:"
+              echo "  session_id   : 0 nulls  PASS"
+              echo "  user_id      : 0 nulls  PASS"
+              echo "  duration_sec : 3 nulls  WARN (0.04%)"
+              echo "Completeness check passed with 1 warning."
+
+      - name: Freshness Check
+        steps:
+          - sh: |
+              echo "=== Data freshness check ==="
+              echo "Table                     Max row ts              Lag"
+              echo "orders_daily              2024-01-15 13:49:11     11m  OK"
+              echo "user_sessions             2024-01-15 13:44:09     16m  OK"
+              echo "inventory_snapshot        2024-01-15 00:07:47     13h  OK"
+              echo "audit_metrics             2024-01-15 13:49:11     11m  OK"
+              echo "All tables within freshness SLA (<24h)."
+
+      - name: Row Count Sanity
+        steps:
+          - sh: |
+              echo "=== Row count sanity check ==="
+              echo "orders_daily  : 1,284 rows  (yesterday: 1,201  delta: +6.9%  OK)"
+              echo "user_sessions :  2,019 rows  (yesterday: 1,987  delta: +1.6%  OK)"
+              echo "inventory     :    40 rows  (yesterday: 40     delta:  0.0%  OK)"
+              echo "All row counts within expected range (<50% delta)."
+
+  - name: Generate Summary Report
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  DATA PIPELINE SUMMARY"
+          echo "  $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          echo ""
+          echo "EXTRACT"
+          echo "  Orders   : 1,284 rows"
+          echo "  Events   : 8,441 rows"
+          echo "  Products :    40 rows"
+          echo "  Audit    :    49 rows"
+          echo ""
+          echo "TRANSFORM"
+          echo "  Orders cleaned   : 1,284 rows"
+          echo "  Sessions created :  2,019 sessions"
+          echo "  Inventory valued : \$284,741"
+          echo "  Audit metrics    : OK"
+          echo ""
+          echo "LOAD"
+          echo "  Data Warehouse   : OK"
+          echo "  Reporting DB     : OK (3 views refreshed)"
+          echo "  Cache            : OK (3 keys refreshed)"
+          echo ""
+          echo "QUALITY"
+          echo "  Completeness     : PASS (1 warning)"
+          echo "  Freshness        : PASS"
+          echo "  Row counts       : PASS"
+          echo ""
+          echo "REVENUE TODAY (so far)"
+          cat .viettelcloud/workflows/examples/audit-log.txt | grep "revenue"
+          echo "============================================"
+          echo "Pipeline status: SUCCESS"
+
+finally:
+  - sh: |
+      echo "=== Data pipeline finished ==="
+      echo "Cleaning up temp files in /tmp/extract/ and /tmp/transform/..."
+      echo "Done."

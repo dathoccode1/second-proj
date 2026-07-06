@@ -1,0 +1,23 @@
+runner: default
+
+trigger:
+  push:
+    branches:
+      - main
+
+stages:
+  - name: Build
+    steps:
+      - sh: |
+          echo "example pipeline stage"
+
+  # Generated from Build / Build Docker Image
+  - name: Build Image
+    steps:
+      - buildImage:
+          imageName: aaaa
+          tag: latest
+          dockerfile: Dockerfile
+          context: .
+          buildArgs: aaa
+          verbose: false

@@ -1,0 +1,99 @@
+runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+  merge_request:
+    target_branches:
+      - main
+      - develop
+    actions:
+      - open
+      - reopen
+      - comment: [recheck]
+
+inputs:
+  targetEnv:
+    description: Deployment target
+    required: true
+    type: choice
+    options:
+      - staging
+      - production
+  imageTag:
+    description: Docker image tag to deploy
+    required: true
+    type: string
+  notify:
+    description: Send notification on finish
+    required: false
+    type: boolean
+    default: true
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Validate Inputs
+    steps:
+      - sh: |
+          echo "Target env : $inputs.targetEnv"
+          echo "Image tag  : $inputs.imageTag"
+          echo "Notify     : $inputs.notify"
+          echo "Deployed by: $inputs.triggeredBy"     # ❌ undefined input — "triggeredBy" was never declared
+
+  - name: Load Config
+    steps:
+      - sh: |
+          echo "Registry   : $config.lib.REGISTRY"
+          echo "Group ID   : $config.lib.NETCHAT_GROUP_ID"
+          echo "Kube ctx   : $config.lib.KUBE_CONTEXT_PROD"   # ❌ undefined config key — only KUBE_CONTEXT exists
+
+  - name: Build Image
+    steps:
+      - buildPushImage:
+          imageName: api-server:$inputs.imageTag
+          registry: $config.lib.DOCKER_PULL_REGISTRY
+          credentials: $config.lib.DOCKER_PUSH_CRED_ID
+          buildArgs:
+            ENV: $inputs.targetEnv
+            VERSION: $inputs.imageTag
+            COMMIT: $GIT_COMMIT
+            BUILDER: $inputs.builtBy         # ❌ undefined input — "builtBy" was never declared
+
+  - name: Deploy Staging
+    steps:
+      - sh: |
+          echo "Deploying to staging..."
+          kubectl set image deployment/api-server api=registry.internal/api-server:$inputs.imageTag -n staging
+
+  - name: Deploy Production
+    steps:
+      - sh: |
+          echo "Deploying to production..."
+          kubectl set image deployment/api-server api=registry.internal/api-server:$inputs.imageTag -n production
+          kubectl rollout status deployment/api-server -n production
+
+  - name: Post-deploy
+    steps:
+      - sh: |
+          echo "Deploy complete. Tag: $inputs.imageTag, Env: $inputs.targetEnv"
+          echo "Rollout started at: $STAGE_START_TIME"    # ❌ undefined variable — no such built-in variable
+          echo "Pipeline URL: $RUN_DISPLAY_URL"
+
+finally:
+  - commentPipelineResult:
+      netchatGroupID: $config.lib.NETCHAT_GROUP_ID
+      onSuccess: |
+        :rocket: api-server:$inputs.imageTag deployed to $inputs.targetEnv
+        Triggered by: $inputs.triggeredBy                 # ❌ undefined input — same undeclared input as above
+        Pipeline: $RUN_DISPLAY_URL
+      onFail: ":x: Deploy $inputs.imageTag failed on $inputs.targetEnv — $FAIL_MESSAGE ([pipeline]($RUN_DISPLAY_URL))"
+      onAbort: ":warning: Deploy $inputs.imageTag canceled ([pipeline]($RUN_DISPLAY_URL))"
+  - sh: |
+      if [ "$inputs.notify" = "true" ]; then   # ❌ inputs cannot be read as shell variable — must use $notify (env form)
+        echo "Sending notification..."
+      fi
+      echo "Cleanup complete."

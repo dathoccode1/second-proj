@@ -1,0 +1,287 @@
+runner: jenkins-jenkins-agent
+
+inputs:
+  browser:
+    description: 'Browser to run tests on'
+    required: false
+    type: choice
+    default: 'all'
+    options:
+      - all
+      - chrome
+      - firefox
+      - safari
+  testSuite:
+    description: 'Test suite to run'
+    required: false
+    type: choice
+    default: 'regression'
+    options:
+      - smoke
+      - regression
+      - full
+  headless:
+    description: 'Run browsers in headless mode'
+    required: false
+    type: boolean
+    default: true
+
+trigger:
+  push:
+    branches:
+      - main
+      - release/*
+
+stages:
+  - name: Checkout
+    steps:
+      - gitCheckout:
+
+  - name: Print Test Plan
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  E2E TEST PLAN"
+          echo "============================================"
+          echo "Suite   : $inputs.testSuite"
+          echo "Browser : $inputs.browser"
+          echo "Headless: $inputs.headless"
+          echo "Branch  : $gitRef"
+          echo "============================================"
+
+  - name: Read App Config
+    steps:
+      - sh: |
+          echo "=== App config for E2E ==="
+          cat .viettelcloud/workflows/examples/app.config
+          echo ""
+          echo "Base URL: http://staging.company.com:8080"
+
+  - name: Setup Test Environment
+    steps:
+      - sh: |
+          echo "=== Setting up E2E environment ==="
+          echo "Starting Selenium Grid..."
+          echo "  Hub   : http://selenium-hub:4444 - READY"
+          echo "  Node Chrome  x4 - READY"
+          echo "  Node Firefox x2 - READY"
+          echo "  Node Safari  x2 - READY"
+          echo ""
+          echo "Seeding test database..."
+          echo "  Inserting 50 test users..."
+          echo "  Inserting 200 test products..."
+          echo "  Inserting 30 test orders..."
+          echo "Test data seeded."
+
+  - name: Smoke Tests
+    parallel: true
+    blocks:
+      - name: Homepage
+        steps:
+          - sh: |
+              echo "=== [Smoke] Homepage ==="
+              echo "  PASS  Homepage loads correctly                    (1.2s)"
+              echo "  PASS  Navigation menu renders                     (0.4s)"
+              echo "  PASS  Hero banner displays                        (0.6s)"
+              echo "  PASS  Featured products section visible           (0.8s)"
+              echo "  PASS  Footer links all valid                      (0.5s)"
+              echo "5/5 passed"
+
+      - name: Auth Flow
+        steps:
+          - sh: |
+              echo "=== [Smoke] Auth Flow ==="
+              echo "  PASS  Register page loads                         (0.9s)"
+              echo "  PASS  Login page loads                            (0.7s)"
+              echo "  PASS  Login with valid credentials                (1.8s)"
+              echo "  PASS  Redirect to dashboard after login           (0.3s)"
+              echo "  PASS  Logout clears session                       (0.6s)"
+              echo "5/5 passed"
+
+      - name: Product Catalog
+        steps:
+          - sh: |
+              echo "=== [Smoke] Product Catalog ==="
+              cat .viettelcloud/workflows/examples/inventory.txt | head -15
+              echo ""
+              echo "  PASS  Product list page loads                     (1.1s)"
+              echo "  PASS  Product detail page loads                   (0.9s)"
+              echo "  PASS  Search returns results                      (1.4s)"
+              echo "  PASS  Category filter works                       (0.7s)"
+              echo "4/4 passed"
+
+  - name: Regression Tests
+    parallel: true
+    blocks:
+      - name: Chrome - Auth & Profile
+        steps:
+          - sh: |
+              echo "=== [Chrome] Auth & Profile Tests ==="
+              echo "  PASS  Register with valid data                    (2.1s)"
+              echo "  PASS  Register duplicate email shows error        (1.3s)"
+              echo "  PASS  Login with wrong password shows error       (1.1s)"
+              echo "  PASS  Forgot password flow sends email            (2.4s)"
+              echo "  PASS  Update profile name and avatar              (1.9s)"
+              echo "  PASS  Change password with old/new                (2.0s)"
+              echo "  PASS  Two-factor auth setup                       (3.1s)"
+              echo "  PASS  Session expires after inactivity            (4.2s)"
+              echo "8/8 passed"
+
+      - name: Chrome - Shopping Cart
+        steps:
+          - sh: |
+              echo "=== [Chrome] Shopping Cart Tests ==="
+              echo "  PASS  Add item to cart                            (1.4s)"
+              echo "  PASS  Update item quantity                        (1.1s)"
+              echo "  PASS  Remove item from cart                       (0.9s)"
+              echo "  PASS  Cart persists after page reload             (1.7s)"
+              echo "  PASS  Apply valid promo code                      (1.8s)"
+              echo "  PASS  Apply invalid promo code shows error        (1.3s)"
+              echo "  PASS  Cart shows correct total with discount      (0.8s)"
+              echo "  PASS  Proceed to checkout button works            (0.6s)"
+              echo "8/8 passed"
+
+      - name: Firefox - Checkout Flow
+        steps:
+          - sh: |
+              echo "=== [Firefox] Checkout Flow Tests ==="
+              echo "  PASS  Checkout page loads with cart items         (1.6s)"
+              echo "  PASS  Fill shipping address form                  (2.2s)"
+              echo "  PASS  Select shipping method                      (0.9s)"
+              echo "  PASS  Enter payment details (test card)           (2.8s)"
+              echo "  PASS  Order summary shows correct breakdown       (1.0s)"
+              echo "  PASS  Place order successfully                    (3.4s)"
+              echo "  PASS  Order confirmation page shows order ID      (0.7s)"
+              echo "  PASS  Confirmation email triggered                (1.1s)"
+              echo "8/8 passed"
+
+      - name: Firefox - Product Search
+        steps:
+          - sh: |
+              echo "=== [Firefox] Product Search Tests ==="
+              echo "  PASS  Search by keyword returns relevant results  (1.9s)"
+              echo "  PASS  Search with no results shows empty state    (1.2s)"
+              echo "  PASS  Filter by price range works                 (1.4s)"
+              echo "  PASS  Filter by category narrows results          (1.1s)"
+              echo "  PASS  Sort by price ascending                     (0.8s)"
+              echo "  PASS  Sort by price descending                    (0.8s)"
+              echo "  PASS  Sort by newest first                        (0.9s)"
+              echo "  PASS  Pagination loads next page                  (1.3s)"
+              echo "  PASS  Search result count is correct              (0.6s)"
+              echo "9/9 passed"
+
+      - name: Safari - Mobile Responsive
+        steps:
+          - sh: |
+              echo "=== [Safari] Mobile Responsive Tests ==="
+              echo "  Viewport: 390x844 (iPhone 14)"
+              echo "  PASS  Hamburger menu opens on mobile              (0.9s)"
+              echo "  PASS  Product grid switches to single column      (0.7s)"
+              echo "  PASS  Cart icon shows item count badge            (0.5s)"
+              echo "  PASS  Checkout form is touch-friendly             (1.4s)"
+              echo "  PASS  Images lazy-load on scroll                  (1.8s)"
+              echo "  PASS  Bottom nav bar visible on mobile            (0.6s)"
+              echo "6/6 passed"
+
+      - name: Safari - Accessibility
+        steps:
+          - sh: |
+              echo "=== [Safari] Accessibility Tests (WCAG 2.1) ==="
+              echo "  PASS  All images have alt text                    (0.8s)"
+              echo "  PASS  Form labels are associated correctly        (0.7s)"
+              echo "  PASS  Color contrast ratio >= 4.5:1              (1.2s)"
+              echo "  PASS  Keyboard navigation works site-wide        (2.1s)"
+              echo "  PASS  Focus indicator visible on all elements     (1.4s)"
+              echo "  PASS  ARIA roles applied correctly               (0.9s)"
+              echo "  PASS  Screen reader announces page changes        (1.6s)"
+              echo "7/7 passed"
+
+  - name: Performance Tests
+    steps:
+      - sh: |
+          echo "=== Lighthouse Performance Audit ==="
+          echo ""
+          echo "Page: Homepage"
+          echo "  Performance     : 92 / 100"
+          echo "  Accessibility   : 97 / 100"
+          echo "  Best Practices  : 95 / 100"
+          echo "  SEO             : 100 / 100"
+          echo ""
+          echo "Page: Product Listing"
+          echo "  Performance     : 88 / 100"
+          echo "  Accessibility   : 95 / 100"
+          echo "  Best Practices  : 95 / 100"
+          echo "  SEO             : 98 / 100"
+          echo ""
+          echo "Page: Checkout"
+          echo "  Performance     : 91 / 100"
+          echo "  Accessibility   : 99 / 100"
+          echo "  Best Practices  : 100 / 100"
+          echo "  SEO             : 95 / 100"
+          echo ""
+          echo "All pages above minimum thresholds (85)."
+
+  - name: Visual Regression
+    parallel: true
+    blocks:
+      - name: Desktop Screenshots
+        steps:
+          - sh: |
+              echo "=== Visual regression (1920x1080) ==="
+              echo "  Comparing homepage.png         - MATCH"
+              echo "  Comparing product-list.png     - MATCH"
+              echo "  Comparing product-detail.png   - MATCH"
+              echo "  Comparing cart.png             - MATCH"
+              echo "  Comparing checkout.png         - MATCH"
+              echo "  Comparing order-confirm.png    - MATCH"
+              echo "6/6 screenshots match baseline."
+
+      - name: Mobile Screenshots
+        steps:
+          - sh: |
+              echo "=== Visual regression (390x844) ==="
+              echo "  Comparing mobile-homepage.png  - MATCH"
+              echo "  Comparing mobile-catalog.png   - MATCH"
+              echo "  Comparing mobile-cart.png      - MATCH"
+              echo "  Comparing mobile-checkout.png  - MATCH"
+              echo "4/4 screenshots match baseline."
+
+  - name: Teardown
+    steps:
+      - sh: |
+          echo "=== Tearing down test environment ==="
+          echo "Stopping Selenium Grid nodes..."
+          echo "  Node Chrome  - stopped"
+          echo "  Node Firefox - stopped"
+          echo "  Node Safari  - stopped"
+          echo "Cleaning test database..."
+          echo "  Deleted 50 test users"
+          echo "  Deleted 200 test products"
+          echo "  Deleted 30 test orders"
+          echo "Teardown complete."
+
+  - name: Test Summary
+    steps:
+      - sh: |
+          echo "============================================"
+          echo "  E2E TEST RESULTS"
+          echo "============================================"
+          echo "Smoke tests         :  14 /  14  PASS"
+          echo "Chrome  auth        :   8 /   8  PASS"
+          echo "Chrome  cart        :   8 /   8  PASS"
+          echo "Firefox checkout    :   8 /   8  PASS"
+          echo "Firefox search      :   9 /   9  PASS"
+          echo "Safari  mobile      :   6 /   6  PASS"
+          echo "Safari  a11y        :   7 /   7  PASS"
+          echo "Visual desktop      :   6 /   6  PASS"
+          echo "Visual mobile       :   4 /   4  PASS"
+          echo "--------------------------------------------"
+          echo "TOTAL               :  70 /  70  PASS"
+          echo "============================================"
+          echo "Duration: 4m 38s"
+
+finally:
+  - sh: |
+      echo "=== E2E pipeline finished ==="
+      echo "Archiving test screenshots and videos..."
+      echo "Done."

@@ -1,0 +1,12 @@
+runner: default
+
+trigger:
+  push:
+    branches:
+      - main
+
+stages:
+  - name: Build
+    steps:
+      - sh: |
+          echo "example pipeline stage"

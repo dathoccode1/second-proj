@@ -1,0 +1,370 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Pipeline YAML Reference
+# Place this file under .viettelcloud/workflows/ in your repository (e.g. .viettelcloud/workflows/deploy.yml).
+# All supported fields are shown below. Unsupported fields cause a parse error.
+#
+# VARIABLE SYNTAX RULE:
+#   - Inside  sh: steps   → use plain shell syntax: $VAR, ${VAR}, $(cmd)
+#   - Inside  other steps → use Groovy GString syntax: $env.VAR, $params.VAR
+#
+#   Reason: sh steps are wrapped in Groovy sh('''...''') — a non-interpolating
+#   string. Groovy passes the script as-is to the shell, which resolves $VAR.
+#   Library function parameters are Groovy strings, so $env.VAR and $params.VAR
+#   are evaluated by Groovy before calling the function.
+#
+#   AVAILABLE VARIABLE SOURCES:
+#   - $env.VAR     → Jenkins built-ins + vars set by parseJsonToEnv(params.initialVar)
+#                    From webhook (push):  $env.gitHttpUrl, $env.gitSshUrl,
+#                                          $env.gitCheckoutSHA, $env.gitRef,
+#                                          $env.gitUsername, $env.gitFullname,
+#                                          $env.gitBefore, $env.gitAfter,
+#                                          $env.gitUserID, $env.gitRepoID
+#                    From webhook (MR):    above + $env.gitSourceBranch,
+#                                          $env.gitTargetBranch, $env.gitMRID,
+#                                          $env.gitMRTitle, $env.gitMRAction,
+#                                          $env.gitMRUrl, $env.gitMRState
+#                    From webhook (tag):   above (push) + $env.gitTagName
+#                    Jenkins built-ins:    $env.BUILD_NUMBER, $env.WORKSPACE,
+#                                          $env.JOB_NAME, $env.BUILD_URL
+#   - $params.VAR  → Jenkins build parameters defined in inputs: below
+#                    Examples: $params.environment, $params.dockerUser
+#   - $VAR (shell) → Any env var, usable inside sh: steps only
+#
+#   NOTE: $config.* does NOT exist in cicd-platform-library. Do not use it.
+#
+#   LITERAL '$' IN FUNCTION PARAMS:
+#   In function parameter values, '$' followed by a letter/'_' or '{' is treated
+#   as a Groovy interpolation ($env.VAR, ${...}). A '$' followed by anything else
+#   (digit, symbol, space) is auto-escaped and passed through literally.
+#   A literal '$' immediately followed by a letter (e.g. "P@$$word") is ambiguous
+#   and will still be read as interpolation — avoid inline secrets like this; use
+#   Jenkins parameters (inputs:) instead.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── runner (required) ────────────────────────────────────────────────────────
+# Jenkins node/agent label that executes all stages unless overridden.
+runner: docker
+
+# ── inputs (optional) ────────────────────────────────────────────────────────
+# Build parameters exposed as Jenkins job parameters.
+# Reserved names (cannot be used): initialVar, webhookBody
+inputs:
+
+  # type: string — free-text input.
+  scriptPath:
+    description: Automation script path
+    required: true
+    type: string
+
+  # type: boolean — checkbox; renders as a true/false toggle.
+  debug:
+    description: Enable debug mode
+    required: false
+    type: boolean
+    default: false
+
+  # type: choice — dropdown; options list is required.
+  environment:
+    description: Target environment
+    required: false
+    type: choice
+    default: staging
+    options:
+      - staging
+      - production
+      - dev
+
+  # type: number — numeric input.
+  replicas:
+    description: Number of replicas
+    required: false
+    type: number
+    default: 1
+
+  # Credentials as build parameters. At build time these can be filled in
+  # manually or injected via Jenkins withCredentials / Kubernetes secrets.
+  dockerUser:
+    description: Docker registry username
+    required: true
+    type: string
+
+  dockerPass:
+    description: Docker registry password
+    required: true
+    type: string
+
+# ── trigger (optional) ────────────────────────────────────────────────────────
+# Controls which GitLab webhook events start this pipeline.
+# Omit the entire block to disable automatic triggering.
+trigger:
+
+  # push — fires on Push Hook and Tag Push Hook events.
+  push:
+    # branches — glob patterns matched against the branch name (filepath.Match).
+    # Omit to never trigger on branch pushes.
+    branches:
+      - main
+      - develop
+      - release/*
+      - feature/*
+
+    # tags — glob patterns matched against the tag name.
+    # Omit to never trigger on tag pushes.
+    tags:
+      - v*
+      - release-?
+
+  # merge_request — fires on Merge Request Hook events.
+  merge_request:
+    # target_branches — MR target branch glob patterns.
+    # Omit (or leave empty) to match all target branches.
+    target_branches:
+      - main
+      - develop
+
+    # actions — which MR actions trigger the pipeline.
+    # Omit (or leave empty) to match all actions.
+    # Two forms:
+    #   - plain string : matches one action name exactly
+    #   - map with list: matches the action AND one of the listed sub-values
+    actions:
+      - open
+      - reopen
+      - update: [commit, title, assignee, description]
+      - comment: [recheck, "please review"]
+
+    # labels — at least one label must be present on the MR.
+    # Omit to match regardless of labels.
+    labels: [urgent, deploy]
+
+  # release — fires on Release Hook events.
+  release:
+    # Omit actions (or leave empty) to match all release actions.
+    # Supported values: create, update, delete
+    actions:
+      - create
+
+  # issue — fires on Issue Hook events.
+  issue:
+    # Omit actions (or leave empty) to match all issue actions.
+    # Supported values: open, close, reopen, update
+    actions:
+      - open
+      - reopen
+    labels: [bug, severity]
+
+# ── stages (required, at least one) ─────────────────────────────────────────
+# Stages execute in order. Each is sequential (default) or parallel.
+stages:
+
+  # ── [1] gitCheckout — clone the triggering repository ────────────────────
+  # url defaults to $env.gitHttpUrl set by parseJsonToEnv(params.initialVar).
+  # $env.gitRef is the full ref string, e.g. "refs/heads/main".
+  # For MR pipelines use $env.gitSourceBranch; for tag pipelines $env.gitTagName.
+  - name: Checkout
+    steps:
+      - gitCheckout:
+          branch: $env.gitRef
+
+      # sh (single line) — simplest form.
+      - sh: git log --oneline -5
+
+  # ── [2] sh — multi-line script with | ───────────────────────────────────
+  - name: Setup
+    steps:
+      # YAML literal block scalar (|) preserves newlines exactly.
+      # Use plain shell variable syntax: $VAR, ${VAR}.
+      - sh: |
+          echo "Ref    : $GIT_BRANCH"
+          echo "Commit : $GIT_COMMIT"
+          echo "Build  : $BUILD_NUMBER"
+
+  # ── [3] sh — command substitution $(...) ─────────────────────────────────
+  - name: Tag & Version
+    steps:
+      # $() command substitution works correctly inside sh('''...''').
+      # Groovy does NOT touch it; the shell executes the subcommand.
+      - sh: |
+          VERSION=$(git describe --tags --always --dirty)
+          echo "Version: $VERSION"
+          echo "$VERSION" > version.txt
+
+  # ── [4] sh — backslash line continuation ─────────────────────────────────
+  - name: Deploy Staging
+    steps:
+      # Backslash at end of line = shell line continuation.
+      # Each \ is stored as \\ in the Groovy source so Groovy does not eat it.
+      - sh: |
+          ansible-playbook \
+            -i ansible/inventory/staging.ini \
+            -b --become-user=root \
+            ansible/playbooks/deploy.yml \
+            -e "image_tag=$(cat version.txt)" \
+            --vault-password-file /run/secrets/vault_pass
+
+  # ── [5] sh — shell heredoc (EOF must stay at column 0 in output) ─────────
+  - name: Write Config
+    steps:
+      # The heredoc terminator (EOF) must appear at column 0 in the final
+      # Groovy script or the shell will not recognise it.
+      # The parser never adds extra indentation to sh script content.
+      - sh: |
+          cat <<EOF > /tmp/app.conf
+          environment=$ENVIRONMENT
+          replicas=$REPLICAS
+          debug=$DEBUG
+          EOF
+          echo "Config written."
+
+  # ── [6] sh — regex with backslashes ──────────────────────────────────────
+  - name: Log Analysis
+    steps:
+      # Backslashes in regex (e.g. \., \|) must survive into the shell.
+      # The parser doubles them in the Groovy source (\. → \\.) so the shell
+      # receives the original single backslash.
+      - sh: |
+          total=$(wc -l < app.log)
+          errors=$(grep -c " ERROR " app.log || true)
+          echo "Total lines: $total  Errors: $errors"
+          grep " ERROR " app.log | \
+            grep -o 'java\.[^:]*\|org\.[^:]*\|com\.[^:]*' | \
+            sort | uniq -c | sort -rn | head -10
+
+  # ── [7] sh — arithmetic expansion $((...)) ────────────────────────────────
+  - name: Capacity Check
+    steps:
+      - sh: |
+          used=$(df /var | awk 'NR==2 {print $5}' | tr -d '%')
+          if [ $((used)) -gt 80 ]; then
+            echo "Disk usage ${used}% exceeds threshold" >&2
+            exit 1
+          fi
+          echo "Disk OK: ${used}%"
+
+  # ── [8] sh — print pipeline context ──────────────────────────────────────
+  # sendNotification does not exist in cicd-platform-library.
+  # Use sh: to print or curl to an external notification endpoint instead.
+  - name: Notify Start
+    steps:
+      - sh: echo "Pipeline started — ref $GIT_BRANCH build $BUILD_NUMBER ($BUILD_URL)"
+
+  # ── [9] buildPushImage — build Docker image and push to registry ──────────
+  # imageName and tag are separate params; the library combines them as "imag$gitRefeName:tag".
+  # username and password come from the inputs: defined above ($params.dockerUser).
+  # registry is the hostname only (e.g. registry.example.com); omit for Docker Hub.
+  - name: Build & Push Image
+    steps:
+      - buildPushImage:
+          imageName: my-app
+          tag: $env.gitCheckoutSHA
+          registry: registry.example.com
+          username: $params.dockerUser
+          password: $params.dockerPass
+
+  # ── [10] Container stage (no runner override) ─────────────────────────────
+  # Docker image runs on the global runner node.
+  # Only sh steps are allowed inside a container stage.
+  - name: Security Scan
+    container:
+      image: aquasec/trivy:latest
+      options: --rm -e TRIVY_NO_PROGRESS=true
+    steps:
+      - sh: trivy image --exit-code 1 --severity HIGH,CRITICAL my-app:latest
+
+  # ── [11] Stage-level runner override ─────────────────────────────────────
+  # Allocates a NEW node for this stage; global node resumes after.
+  - name: Deploy to Kubernetes
+    runner: kubernetes
+    steps:
+      - sh: |
+          kubectl set image deployment/my-app \
+            my-app=my-app:$(cat version.txt) \
+            --namespace $NAMESPACE
+          kubectl rollout status deployment/my-app --namespace $NAMESPACE
+
+  # ── [12] Stage runner + container ────────────────────────────────────────
+  # Allocates a new node, then runs Docker inside it.
+  # Only sh steps are allowed.
+  - name: Integration Test
+    runner: integration-agent
+    container:
+      image: maven:3.9-eclipse-temurin-21
+    steps:
+      - sh: mvn verify -Dspring.profiles.active=test
+
+  # ── [13] Parallel stage, global runner ───────────────────────────────────
+  # All blocks run concurrently on the global runner node (failFast: true).
+  - name: Test Suite
+    parallel: true
+    blocks:
+      - name: Unit Tests
+        steps:
+          - sh: ./gradlew test
+
+      - name: Integration Tests
+        steps:
+          - sh: ./gradlew integrationTest
+
+      - name: Code Quality
+        steps:
+          - sh: ./gradlew sonarqube -Dsonar.token=$SONAR_TOKEN
+
+  # ── [14] Parallel stage with stage-level runner ───────────────────────────
+  # All blocks share ONE new node allocated for the stage.
+  - name: E2E Tests
+    runner: e2e-agent
+    parallel: true
+    blocks:
+      - name: Chrome
+        steps:
+          - sh: ./run-e2e.sh --browser chrome
+
+      - name: Firefox
+        steps:
+          - sh: ./run-e2e.sh --browser firefox
+
+  # ── [15] Parallel stage with per-block runner ─────────────────────────────
+  # Each block allocates its OWN node — true distributed execution.
+  - name: Cross-Platform Build
+    parallel: true
+    blocks:
+      - name: Linux
+        runner: linux-agent
+        steps:
+          - sh: make build-linux
+
+      - name: Windows
+        runner: windows-agent
+        steps:
+          - sh: make build-windows
+
+  # ── [16] Parallel stage with per-block container ──────────────────────────
+  # Each block runs inside its own Docker image.
+  # Only sh steps allowed when container is set.
+  - name: Multi-JDK Test
+    parallel: true
+    blocks:
+      - name: JDK 17
+        container:
+          image: eclipse-temurin:17
+        steps:
+          - sh: java -version && mvn test
+
+      - name: JDK 21
+        container:
+          image: eclipse-temurin:21
+        steps:
+          - sh: java -version && mvn test
+
+# ── finally (optional) ────────────────────────────────────────────────────────
+# Always runs after all stages finish — success, failure, or abort.
+# Same step format as stages.steps. No runner or container override here.
+finally:
+  # commentPipelineResult does not exist in cicd-platform-library.
+  # Use sh: to print a summary or curl to an external notification endpoint.
+  - sh: echo "Pipeline done — build $BUILD_NUMBER result $BUILD_RESULT ($BUILD_URL)"
+
+  - sh: |
+      echo "Cleaning up workspace..."
+      rm -rf build/ .gradle/ target/
+      docker rmi my-app:$(cat version.txt) 2>/dev/null || true

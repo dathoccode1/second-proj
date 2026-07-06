@@ -1,0 +1,432 @@
+runner: jenkins-jenkins-agent
+
+trigger:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/*
+  merge_request:
+    target_branches: [main, develop]
+    actions:
+      - open
+      - reopen
+      - comment: [recheck, "please review"]
+
+stages:
+  # ── Stage 1 ── Checkout & Setup (≈ 30s) ────────────────────────────────────
+  - name: Checkout & Setup
+    steps:
+      - gitCheckout:
+      - sh: |
+          echo "================================================"
+          echo "  BUILD: payment-service v2.7.1  #$BUILD_NUMBER"
+          echo "  Branch : $gitRef"
+          echo "  Runner : $(hostname)"
+          echo "  Date   : $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "================================================"
+          echo ""
+          echo "Verifying workspace structure..."
+          echo "  src/                 OK"
+          echo "  app/                 OK"
+          echo "  k8s/                 OK"
+          echo "  Dockerfile           OK"
+          echo "  package.json         OK"
+          echo "  requirements.txt     OK"
+          echo ""
+          echo "Workspace ready."
+          sleep 20
+      - sh: |
+          echo "=== Tool version check ==="
+          echo "  node       v20.11.0"
+          echo "  npm        10.2.4"
+          echo "  python     3.11.7"
+          echo "  docker     24.0.7"
+          echo "  kubectl    v1.29.1"
+          echo ""
+          echo "All required tools available."
+          sleep 10
+
+  # ── Stage 2 ── Install Dependencies (≈ 30s) ────────────────────────────────
+  - name: Install Dependencies
+    steps:
+      - sh: |
+          echo "=== Checking dependency cache ==="
+          echo "Cache key: npm-$(sha256sum package-lock.json 2>/dev/null | cut -c1-12 || echo 'abc123def456')"
+          echo "Cache status: HIT (last updated 1h 42m ago)"
+          echo "Restoring node_modules/ from cache..."
+          echo "  Restored 312 packages (48.6 MB)"
+          echo "Cache restored successfully."
+          sleep 8
+      - sh: |
+          echo "=== npm ci (new/changed packages) ==="
+          echo "  added 12 packages"
+          echo "  updated 3 packages"
+          echo "  audited 312 packages in 4.2s"
+          echo ""
+          echo "=== pip install -r requirements.txt ==="
+          echo "  Collecting fastapi==0.109.0"
+          echo "  Collecting uvicorn==0.27.0"
+          echo "  Collecting sqlalchemy==2.0.25"
+          echo "  Collecting pydantic==2.6.1"
+          echo "  Collecting alembic==1.13.1"
+          echo "  Successfully installed 28 packages (12.4 MB)"
+          sleep 12
+      - sh: |
+          echo "=== Verifying installed packages ==="
+          echo "  node           v20.11.0    OK"
+          echo "  fastapi        0.109.0     OK"
+          echo "  uvicorn        0.27.0      OK"
+          echo "  sqlalchemy     2.0.25      OK"
+          echo "  pydantic       2.6.1       OK"
+          echo "  alembic        1.13.1      OK"
+          echo ""
+          echo "All 340 dependencies verified."
+          sleep 10
+
+  # ── Stage 3 ── Code Quality (≈ 30s) ────────────────────────────────────────
+  - name: Code Quality
+    steps:
+      - sh: |
+          echo "=== ESLint — TypeScript ==="
+          echo "  src/index.ts                     OK"
+          echo "  src/routes/payments.ts           OK"
+          echo "  src/routes/webhooks.ts           OK"
+          echo "  src/services/stripe.ts           OK"
+          echo "  src/services/fraud-detect.ts     OK"
+          echo "  src/models/transaction.ts        OK"
+          echo "  src/middleware/auth.ts            OK"
+          echo "  src/utils/logger.ts              OK"
+          echo ""
+          echo "ESLint: 0 errors, 0 warnings (8 files scanned)"
+          sleep 10
+      - sh: |
+          echo "=== Ruff — Python ==="
+          echo "  app/main.py                      OK"
+          echo "  app/api/endpoints.py             OK"
+          echo "  app/core/config.py               OK"
+          echo "  app/models/payment.py            OK"
+          echo "  app/services/processor.py        OK"
+          echo ""
+          echo "Ruff: All checks passed."
+          echo ""
+          echo "=== mypy — Type checking ==="
+          echo "  app/: Success — no issues found in 5 source files"
+          sleep 10
+      - sh: |
+          echo "=== SonarQube Quality Gate ==="
+          echo "Connecting to sonar.internal..."
+          echo "Uploading coverage report..."
+          echo "Analyzing 13 source files..."
+          echo ""
+          echo "Quality Gate: PASSED"
+          echo "  Bugs             :  0   (threshold: 0)    OK"
+          echo "  Vulnerabilities  :  0   (threshold: 0)    OK"
+          echo "  Code Smells      :  4   (threshold: 10)   OK"
+          echo "  Coverage         : 82%  (threshold: 80%)  OK"
+          echo "  Duplications     : 2.1% (threshold: 3%)   OK"
+          sleep 10
+
+  # ── Stage 4 ── Unit Tests (≈ 30s) ──────────────────────────────────────────
+  - name: Unit Tests
+    parallel: true
+    blocks:
+      - name: Jest — TypeScript
+        steps:
+          - sh: |
+              echo "=== Running Jest test suites ==="
+              echo ""
+              echo " PASS  src/__tests__/payments.test.ts      (12 tests)"
+              echo " PASS  src/__tests__/webhooks.test.ts      ( 8 tests)"
+              echo " PASS  src/__tests__/fraud-detect.test.ts  ( 9 tests)"
+              echo " PASS  src/__tests__/auth.test.ts          (11 tests)"
+              echo " PASS  src/__tests__/logger.test.ts        ( 7 tests)"
+              echo ""
+              echo "Test Suites : 5 passed,  5 total"
+              echo "Tests       : 47 passed, 47 total"
+              echo "Coverage    : 84.2% statements"
+              echo "Time        : 6.847s"
+              sleep 30
+
+      - name: Pytest — Python
+        steps:
+          - sh: |
+              echo "=== Running Pytest suites ==="
+              echo ""
+              echo "collected 38 items"
+              echo ""
+              echo "app/tests/test_endpoints.py  ........   8 passed"
+              echo "app/tests/test_processor.py  ......     6 passed"
+              echo "app/tests/test_models.py     .........  9 passed"
+              echo "app/tests/test_config.py     ......     6 passed"
+              echo "app/tests/test_utils.py      .........  9 passed"
+              echo ""
+              echo "38 passed in 4.21s"
+              echo "Coverage: 80.7%"
+              sleep 30
+
+  # ── Stage 5 ── Build Artifacts (≈ 30s) ─────────────────────────────────────
+  - name: Build Artifacts
+    steps:
+      - sh: |
+          echo "=== Compiling TypeScript ==="
+          echo "tsc --project tsconfig.json --outDir dist/"
+          echo "  Compiled 8 source files → dist/"
+          echo "  No TypeScript errors."
+          echo "  Time: 3.4s"
+          sleep 8
+      - sh: |
+          echo "=== Building Python wheel ==="
+          echo "python -m build --wheel"
+          echo "  Creating build/lib/app/"
+          echo "  Collecting metadata..."
+          echo "  Building wheel: payment_service-2.7.1-py3-none-any.whl"
+          echo "  Successfully built in 2.1s"
+          sleep 12
+      - sh: |
+          echo "=== Build artifact summary ==="
+          echo "dist/"
+          echo "  index.js                     48 KB"
+          echo "  routes/payments.js           12 KB"
+          echo "  routes/webhooks.js            9 KB"
+          echo "  services/stripe.js           15 KB"
+          echo "  services/fraud-detect.js     18 KB"
+          echo "build/"
+          echo "  payment_service-2.7.1-py3-none-any.whl   124 KB"
+          echo ""
+          echo "Total artifact size: 226 KB"
+          echo "Build: SUCCESS"
+          sleep 10
+
+  # ── Stage 6 ── Integration Tests (≈ 30s) ───────────────────────────────────
+  - name: Integration Tests
+    steps:
+      - sh: |
+          echo "=== Starting test dependencies ==="
+          echo "  postgres:15 (port 5433)        ... READY"
+          echo "  redis:7     (port 6380)         ... READY"
+          echo "  mock-stripe (port 12111)        ... READY"
+          echo "  mock-fraud  (port 12112)        ... READY"
+          echo ""
+          echo "Seeding test database..."
+          echo "  Inserted 50 test accounts"
+          echo "  Inserted 100 test transactions"
+          echo "  DB seed complete."
+          sleep 10
+      - sh: |
+          echo "=== Running integration tests ==="
+          echo ""
+          echo "  POST /payments                    PASS   (124ms)"
+          echo "  GET  /payments/:id                PASS    (45ms)"
+          echo "  POST /payments/refund             PASS   (212ms)"
+          echo "  POST /webhooks/stripe             PASS    (88ms)"
+          echo "  POST /webhooks/fraud-alert        PASS    (76ms)"
+          echo "  GET  /payments/history            PASS    (93ms)"
+          echo "  POST /payments/batch              PASS   (334ms)"
+          echo "  GET  /metrics                     PASS     (8ms)"
+          echo "  GET  /health                      PASS     (6ms)"
+          echo ""
+          echo "9 tests passed. Total time: 986ms"
+          sleep 20
+
+  # ── Stage 7 ── Security Scan (≈ 30s) ───────────────────────────────────────
+  - name: Security Scan
+    steps:
+      - sh: |
+          echo "=== SAST — Semgrep ==="
+          echo "Scanning src/ and app/ ..."
+          echo "  SQL injection patterns          PASS"
+          echo "  XSS / injection patterns        PASS"
+          echo "  Insecure crypto usage           PASS"
+          echo "  Hardcoded credentials           PASS"
+          echo "  Path traversal                  PASS"
+          echo "  Command injection               PASS"
+          echo "  Insecure deserialization        PASS"
+          echo ""
+          echo "Semgrep: 0 findings across 13 files"
+          sleep 10
+      - sh: |
+          echo "=== Dependency audit ==="
+          echo "npm audit (312 packages)..."
+          echo "  found 0 vulnerabilities"
+          echo ""
+          echo "pip-audit (28 packages)..."
+          echo "  No known vulnerabilities found"
+          echo ""
+          echo "=== License compliance ==="
+          echo "  MIT          : 287 packages   OK"
+          echo "  Apache-2.0   :  34 packages   OK"
+          echo "  BSD-3-Clause :  19 packages   OK"
+          echo "  0 packages with disallowed licenses."
+          sleep 10
+      - sh: |
+          echo "=== Trivy — secrets scan ==="
+          echo "Scanning repository for leaked credentials..."
+          echo "  .env.example        OK (template only)"
+          echo "  config/             OK"
+          echo "  src/                OK"
+          echo "  app/                OK"
+          echo "  k8s/                OK"
+          echo ""
+          echo "Trivy: 0 secrets detected"
+          echo ""
+          echo "Security gate: PASSED"
+          sleep 10
+
+  # ── Stage 8 ── Build & Push Docker Image (≈ 30s) ───────────────────────────
+  - name: Build & Push Docker Image
+    steps:
+      - sh: |
+          echo "=== docker build ==="
+          echo "Building registry.internal/payment-service:2.7.1-$BUILD_NUMBER"
+          echo ""
+          echo "  [1/9] FROM node:20-alpine AS base"
+          echo "  [2/9] WORKDIR /app"
+          echo "  [3/9] COPY package*.json ./"
+          echo "  [4/9] RUN npm ci --production     → 298 packages installed"
+          echo "  [5/9] FROM python:3.11-slim"
+          echo "  [6/9] COPY --from=base /app /app"
+          echo "  [7/9] COPY app/ ./app/"
+          echo "  [8/9] RUN pip install *.whl       → 28 packages installed"
+          echo "  [9/9] CMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\"]"
+          echo ""
+          echo "Successfully built a3f7c819d2e1"
+          echo "Tagged: registry.internal/payment-service:2.7.1-$BUILD_NUMBER"
+          sleep 15
+      - sh: |
+          echo "=== docker push ==="
+          echo "Pushing registry.internal/payment-service:2.7.1-$BUILD_NUMBER ..."
+          echo "  Layer sha256:a1b2c3d4  [====================] 100%  38.4 MB"
+          echo "  Layer sha256:e5f6a7b8  [====================] 100%  12.1 MB"
+          echo "  Layer sha256:c9d0e1f2  [====================] 100%   4.8 MB"
+          echo "  Layer sha256:03a4b5c6  [====================] 100%   1.2 MB"
+          echo ""
+          echo "Digest: sha256:9f8e7d6c5b4a321987654321abcdef0123456789"
+          echo "Image pushed: registry.internal/payment-service:2.7.1-$BUILD_NUMBER"
+          sleep 10
+      - sh: |
+          echo "=== Trivy — image vulnerability scan ==="
+          echo "Scanning registry.internal/payment-service:2.7.1-$BUILD_NUMBER ..."
+          echo ""
+          echo "  OS packages    : 0 CRITICAL  0 HIGH  2 MEDIUM  5 LOW"
+          echo "  App libraries  : 0 CRITICAL  0 HIGH  0 MEDIUM  0 LOW"
+          echo ""
+          echo "Image scan: PASSED (no CRITICAL/HIGH CVEs)"
+          echo "Tagging as :latest ..."
+          echo "Tag pushed: registry.internal/payment-service:latest"
+          sleep 5
+
+  # ── Stage 9 ── Deploy to Staging (≈ 30s) ───────────────────────────────────
+  - name: Deploy to Staging
+    container:
+      image: rancher/kubectl
+      options: -e ENV=staging
+    steps:
+      - sh: |
+          echo "=== Updating Kubernetes manifests ==="
+          echo "Patching deployment image..."
+          echo "  deployment/payment-service → registry.internal/payment-service:2.7.1-$BUILD_NUMBER"
+          echo ""
+          echo "Updating ConfigMap..."
+          echo "  APP_VERSION = 2.7.1"
+          echo "  BUILD_NUMBER = $BUILD_NUMBER"
+          echo ""
+          echo "Manifests ready for apply."
+          sleep 5
+      - sh: |
+          echo "=== kubectl apply -f k8s/staging/ ==="
+          echo "  deployment.apps/payment-service         configured"
+          echo "  service/payment-service                 unchanged"
+          echo "  configmap/payment-service-config        configured"
+          echo "  horizontalpodautoscaler.autoscaling/..  unchanged"
+          echo "  ingress.networking.k8s.io/payment-svc   unchanged"
+          echo ""
+          echo "=== kubectl rollout status ==="
+          echo "Waiting for rollout to complete..."
+          echo "  Waiting for 3 pods to be running..."
+          echo "  deployment \"payment-service\" successfully rolled out"
+          sleep 15
+      - sh: |
+          echo "=== Post-deploy health check ==="
+          echo "Pods in namespace 'staging':"
+          echo "  payment-service-7d8b9c-xk2p4   1/1   Running   0   18s"
+          echo "  payment-service-7d8b9c-mn5q7   1/1   Running   0   15s"
+          echo "  payment-service-7d8b9c-rt9v1   1/1   Running   0   12s"
+          echo ""
+          echo "Service endpoints:"
+          echo "  http://staging.internal/payment-service     HEALTHY"
+          echo "  http://staging.internal/payment-service/metrics  HEALTHY"
+          echo ""
+          echo "Deployment verified: 3/3 pods Running."
+          sleep 10
+
+  # ── Stage 10 ── Smoke Tests & Summary (≈ 30s) ──────────────────────────────
+  - name: Smoke Tests & Summary
+    steps:
+      - sh: |
+          echo "=== Smoke tests against staging ==="
+          echo ""
+          echo "  GET  /health"
+          echo "       200 OK  (11ms)                           PASS"
+          echo "  POST /payments"
+          echo "       201 Created  (98ms)                      PASS"
+          echo "  GET  /payments/smoke-test-001"
+          echo "       200 OK  (44ms)                           PASS"
+          echo "  POST /payments/refund"
+          echo "       200 OK  (156ms)                          PASS"
+          echo "  POST /webhooks/stripe (test event)"
+          echo "       200 OK  (72ms)                           PASS"
+          echo "  GET  /metrics"
+          echo "       200 OK  (6ms)                            PASS"
+          echo ""
+          echo "6 / 6 smoke tests passed."
+          sleep 15
+      - sh: |
+          echo "=== Performance baseline check ==="
+          echo "Sending 100 requests @ 10 RPS to staging..."
+          echo ""
+          echo "  Requests    :  100 / 100 (0 errors)"
+          echo "  p50 latency :   42ms"
+          echo "  p95 latency :   89ms"
+          echo "  p99 latency :  134ms"
+          echo "  Throughput  :  10.0 RPS"
+          echo "  Error rate  :  0.00%"
+          echo ""
+          echo "SLO check: p99 < 500ms — PASS"
+          sleep 10
+      - sh: |
+          echo "============================================="
+          echo "  CI/CD PIPELINE — FINAL SUMMARY"
+          echo "============================================="
+          echo "  Service    : payment-service"
+          echo "  Version    : 2.7.1 (build $BUILD_NUMBER)"
+          echo "  Branch     : $gitRef"
+          echo "  Image      : registry.internal/payment-service:2.7.1-$BUILD_NUMBER"
+          echo "---------------------------------------------"
+          echo "  Stage                   Duration   Status"
+          echo "  Checkout & Setup          0m 30s   PASS"
+          echo "  Install Dependencies      0m 30s   PASS"
+          echo "  Code Quality              0m 30s   PASS"
+          echo "  Unit Tests                0m 30s   PASS"
+          echo "  Build Artifacts           0m 30s   PASS"
+          echo "  Integration Tests         0m 30s   PASS"
+          echo "  Security Scan             0m 30s   PASS"
+          echo "  Build & Push Image        0m 30s   PASS"
+          echo "  Deploy to Staging         0m 30s   PASS"
+          echo "  Smoke Tests & Summary     0m 30s   PASS"
+          echo "---------------------------------------------"
+          echo "  Total Duration            5m 01s   SUCCESS"
+          echo "============================================="
+          sleep 5
+
+finally:
+  - commentPipelineResult:
+      netchatGroupID: $config.lib.NETCHAT_GROUP_ID
+      onSuccess: ":rocket: payment-service v2.7.1 deployed to staging ([pipeline]($RUN_DISPLAY_URL))"
+      onFail: ":x: payment-service v2.7.1 FAILED ([pipeline]($RUN_DISPLAY_URL)) $FAIL_MESSAGE"
+      onAbort: ":warning: payment-service v2.7.1 was canceled ([pipeline]($RUN_DISPLAY_URL))"
+  - sh: |
+      echo "=== Cleanup ==="
+      echo "Removing local Docker layers..."
+      echo "Cleaning test database..."
+      echo "Workspace cleanup complete."

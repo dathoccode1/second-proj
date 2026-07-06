@@ -1,0 +1,6 @@
+web-01  10.0.1.10  production
+web-02  10.0.1.11  production
+web-03  10.0.1.12  production
+db-01   10.0.2.10  production  primary
+db-02   10.0.2.11  production  replica
+cache-01 10.0.3.10 production
