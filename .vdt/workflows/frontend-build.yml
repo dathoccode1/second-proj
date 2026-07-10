@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -16,20 +16,20 @@ stages:
     steps:
       - sh: |
           echo "=== Reading app config ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
 
   - name: Check Version
     steps:
       - sh: |
           echo "=== Current version ==="
-          cat .github/workflows/examples/version.txt
-          echo "Building frontend for version: $(cat .github/workflows/examples/version.txt)"
+          cat .vdt/workflows/examples/version.txt
+          echo "Building frontend for version: $(cat .vdt/workflows/examples/version.txt)"
 
   - name: Install Dependencies
     steps:
       - sh: |
           echo "=== Installing dependencies ==="
-          cat .github/workflows/examples/dependencies.txt
+          cat .vdt/workflows/examples/dependencies.txt
           echo ""
           echo "All dependencies listed above will be installed..."
           echo "Resolving dependency tree..."

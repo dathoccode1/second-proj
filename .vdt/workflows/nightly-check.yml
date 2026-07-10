@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -23,7 +23,7 @@ stages:
     steps:
       - sh: |
           echo "=== Loading configuration ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
           echo ""
           echo "Configuration loaded."
 
@@ -31,7 +31,7 @@ stages:
     steps:
       - sh: |
           echo "=== Dependency audit ==="
-          cat .github/workflows/examples/dependencies.txt
+          cat .vdt/workflows/examples/dependencies.txt
           echo ""
           echo "Checking for outdated packages..."
           echo "  spring-boot:3.2.1   -> latest: 3.2.4  [UPDATE AVAILABLE]"
@@ -67,7 +67,7 @@ stages:
     steps:
       - sh: |
           echo "=== Database health check ==="
-          cat .github/workflows/examples/servers.txt
+          cat .vdt/workflows/examples/servers.txt
           echo ""
           echo "Checking db-01 (10.0.2.10) PRIMARY..."
           echo "  Connection: OK"
@@ -107,7 +107,7 @@ stages:
           echo "======================================="
           echo "         NIGHTLY CHECK REPORT          "
           echo "======================================="
-          cat .github/workflows/examples/version.txt | xargs -I{} echo "App Version   : {}"
+          cat .vdt/workflows/examples/version.txt | xargs -I{} echo "App Version   : {}"
           echo "Config        : OK"
           echo "Dependencies  : 2 updates available"
           echo "Disk          : OK"

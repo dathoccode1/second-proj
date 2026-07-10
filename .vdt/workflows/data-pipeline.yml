@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -25,10 +25,10 @@ stages:
     steps:
       - sh: |
           echo "=== Loading configuration ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
           echo ""
           echo "=== Server inventory ==="
-          cat .github/workflows/examples/servers.txt
+          cat .vdt/workflows/examples/servers.txt
 
   - name: Validate Source Data
     parallel: true
@@ -37,9 +37,9 @@ stages:
         steps:
           - sh: |
               echo "=== Validating inventory data ==="
-              cat .github/workflows/examples/inventory.txt
+              cat .vdt/workflows/examples/inventory.txt
               echo ""
-              echo "Row count    : $(cat .github/workflows/examples/inventory.txt | grep -c SKU || echo 40)"
+              echo "Row count    : $(cat .vdt/workflows/examples/inventory.txt | grep -c SKU || echo 40)"
               echo "Format check : PASS"
               echo "No null SKUs : PASS"
               echo "Price valid  : PASS"
@@ -48,9 +48,9 @@ stages:
         steps:
           - sh: |
               echo "=== Validating audit log ==="
-              cat .github/workflows/examples/audit-log.txt
+              cat .vdt/workflows/examples/audit-log.txt
               echo ""
-              echo "Log lines    : $(cat .github/workflows/examples/audit-log.txt | wc -l)"
+              echo "Log lines    : $(cat .vdt/workflows/examples/audit-log.txt | wc -l)"
               echo "Format check : PASS"
               echo "No gaps      : PASS"
 
@@ -58,7 +58,7 @@ stages:
         steps:
           - sh: |
               echo "=== Validating test report ==="
-              cat .github/workflows/examples/test-report.txt
+              cat .vdt/workflows/examples/test-report.txt
               echo ""
               echo "Suites found : 6"
               echo "Schema valid : PASS"
@@ -79,7 +79,7 @@ stages:
         steps:
           - sh: |
               echo "=== Extracting product data ==="
-              cat .github/workflows/examples/inventory.txt | head -5
+              cat .vdt/workflows/examples/inventory.txt | head -5
               echo "..."
               echo "Extracted 40 product records"
               echo "Saved to /tmp/extract/products.csv"
@@ -97,7 +97,7 @@ stages:
         steps:
           - sh: |
               echo "=== Extracting audit events ==="
-              cat .github/workflows/examples/audit-log.txt | tail -20
+              cat .vdt/workflows/examples/audit-log.txt | tail -20
               echo ""
               echo "Extracted 49 audit log entries"
               echo "Saved to /tmp/extract/audit.csv"
@@ -269,7 +269,7 @@ stages:
           echo "  Row counts       : PASS"
           echo ""
           echo "REVENUE TODAY (so far)"
-          cat .github/workflows/examples/audit-log.txt | grep "revenue"
+          cat .vdt/workflows/examples/audit-log.txt | grep "revenue"
           echo "============================================"
           echo "Pipeline status: SUCCESS"
 

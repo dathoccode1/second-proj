@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -27,17 +27,17 @@ stages:
     steps:
       - sh: |
           echo "=== Log file info ==="
-          ls -lh .github/workflows/examples/app-server.log
+          ls -lh .vdt/workflows/examples/app-server.log
           echo ""
-          TOTAL=$(wc -l < .github/workflows/examples/app-server.log)
+          TOTAL=$(wc -l < .vdt/workflows/examples/app-server.log)
           echo "Total lines : $TOTAL"
-          echo "Period      : $(head -1 .github/workflows/examples/app-server.log | cut -d' ' -f1,2) -> $(tail -1 .github/workflows/examples/app-server.log | cut -d' ' -f1,2)"
+          echo "Period      : $(head -1 .vdt/workflows/examples/app-server.log | cut -d' ' -f1,2) -> $(tail -1 .vdt/workflows/examples/app-server.log | cut -d' ' -f1,2)"
           echo ""
           echo "=== First 5 lines ==="
-          head -5 .github/workflows/examples/app-server.log
+          head -5 .vdt/workflows/examples/app-server.log
           echo ""
           echo "=== Last 5 lines ==="
-          tail -5 .github/workflows/examples/app-server.log
+          tail -5 .vdt/workflows/examples/app-server.log
 
   - name: Quick Stats
     parallel: true
@@ -47,7 +47,7 @@ stages:
           - sh: |
               echo "=== Log level distribution ==="
               for level in DEBUG INFO WARN ERROR; do
-                count=$(grep -c " $level " .github/workflows/examples/app-server.log || true)
+                count=$(grep -c " $level " .vdt/workflows/examples/app-server.log || true)
                 echo "  $level : $count lines"
               done
 
@@ -55,24 +55,24 @@ stages:
         steps:
           - sh: |
               echo "=== ERROR entries (first 10) ==="
-              grep " ERROR " .github/workflows/examples/app-server.log | head -10
+              grep " ERROR " .vdt/workflows/examples/app-server.log | head -10
 
       - name: Slow Queries
         steps:
           - sh: |
               echo "=== WARN slow queries (first 8) ==="
-              grep "Slow query" .github/workflows/examples/app-server.log | head -8
+              grep "Slow query" .vdt/workflows/examples/app-server.log | head -8
 
       - name: Auth Events
         steps:
           - sh: |
               echo "=== Authentication events (first 10) ==="
-              grep "authenticated successfully" .github/workflows/examples/app-server.log | head -10
+              grep "authenticated successfully" .vdt/workflows/examples/app-server.log | head -10
 
   - name: Stream Log
     steps:
       - sh: |
-          LOGFILE=".github/workflows/examples/app-server.log"
+          LOGFILE=".vdt/workflows/examples/app-server.log"
           BATCH=40
           TOTAL=$(wc -l < "$LOGFILE")
           echo "=== Streaming $TOTAL lines at 40 lines/sec ==="
@@ -96,15 +96,15 @@ stages:
         steps:
           - sh: |
               echo "=== Error analysis ==="
-              total=$(wc -l < .github/workflows/examples/app-server.log)
-              errors=$(grep -c " ERROR " .github/workflows/examples/app-server.log || true)
-              warns=$(grep -c " WARN  " .github/workflows/examples/app-server.log || true)
+              total=$(wc -l < .vdt/workflows/examples/app-server.log)
+              errors=$(grep -c " ERROR " .vdt/workflows/examples/app-server.log || true)
+              warns=$(grep -c " WARN  " .vdt/workflows/examples/app-server.log || true)
               echo "Total lines : $total"
               echo "Errors      : $errors"
               echo "Warnings    : $warns"
               echo ""
               echo "Error breakdown:"
-              grep " ERROR " .github/workflows/examples/app-server.log | \
+              grep " ERROR " .vdt/workflows/examples/app-server.log | \
                 grep -o 'java\.[^:]*\|org\.[^:]*\|com\.[^:]*' | \
                 sort | uniq -c | sort -rn | head -10
 
@@ -112,7 +112,7 @@ stages:
         steps:
           - sh: |
               echo "=== Payment failure events ==="
-              grep -i "payment\|stripe\|CardException" .github/workflows/examples/app-server.log | \
+              grep -i "payment\|stripe\|CardException" .vdt/workflows/examples/app-server.log | \
                 grep -i "ERROR\|WARN\|failed\|declined" | head -15
 
       - name: Hourly Traffic
@@ -120,7 +120,7 @@ stages:
           - sh: |
               echo "=== Hourly request volume ==="
               for h in 00 02 04 06 08 10 12 14 16 18 20 22; do
-                count=$(grep "^2024-01-15 $h:" .github/workflows/examples/app-server.log | wc -l)
+                count=$(grep "^2024-01-15 $h:" .vdt/workflows/examples/app-server.log | wc -l)
                 bar=$(printf '%*s' $((count / 2)) '' | tr ' ' '#')
                 printf "  %s:xx  %4d  %s\n" "$h" "$count" "$bar"
               done
@@ -129,9 +129,9 @@ stages:
         steps:
           - sh: |
               echo "=== Cache performance ==="
-              hits=$(grep -c "Cache hit" .github/workflows/examples/app-server.log || true)
-              misses=$(grep -c "Cache miss" .github/workflows/examples/app-server.log || true)
-              evictions=$(grep -c "Evicting cache" .github/workflows/examples/app-server.log || true)
+              hits=$(grep -c "Cache hit" .vdt/workflows/examples/app-server.log || true)
+              misses=$(grep -c "Cache miss" .vdt/workflows/examples/app-server.log || true)
+              evictions=$(grep -c "Evicting cache" .vdt/workflows/examples/app-server.log || true)
               total=$((hits + misses))
               if [ $total -gt 0 ]; then
                 rate=$((hits * 100 / total))
@@ -147,14 +147,14 @@ stages:
           echo "============================================"
           echo "  LOG ANALYSIS COMPLETE"
           echo "============================================"
-          TOTAL=$(wc -l < .github/workflows/examples/app-server.log)
+          TOTAL=$(wc -l < .vdt/workflows/examples/app-server.log)
           echo "File        : app-server.log"
           echo "Total lines : $TOTAL"
           echo "Streamed    : 40 lines/batch, 1 sec/batch"
           echo ""
           echo "Period covered:"
-          echo "  From : $(head -1 .github/workflows/examples/app-server.log | awk '{print $1, $2}')"
-          echo "  To   : $(tail -1 .github/workflows/examples/app-server.log | awk '{print $1, $2}')"
+          echo "  From : $(head -1 .vdt/workflows/examples/app-server.log | awk '{print $1, $2}')"
+          echo "  To   : $(tail -1 .vdt/workflows/examples/app-server.log | awk '{print $1, $2}')"
           echo "============================================"
 
 finally:

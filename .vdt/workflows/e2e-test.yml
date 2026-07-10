@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 inputs:
   browser:
@@ -53,7 +53,7 @@ stages:
     steps:
       - sh: |
           echo "=== App config for E2E ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
           echo ""
           echo "Base URL: http://staging.company.com:8080"
 
@@ -102,7 +102,7 @@ stages:
         steps:
           - sh: |
               echo "=== [Smoke] Product Catalog ==="
-              cat .github/workflows/examples/inventory.txt | head -15
+              cat .vdt/workflows/examples/inventory.txt | head -15
               echo ""
               echo "  PASS  Product list page loads                     (1.1s)"
               echo "  PASS  Product detail page loads                   (0.9s)"

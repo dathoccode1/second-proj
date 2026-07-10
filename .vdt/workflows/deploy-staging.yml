@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -23,7 +23,7 @@ stages:
     steps:
       - sh: |
           echo "=== Loading app config ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
           echo ""
           echo "Config loaded successfully."
 
@@ -31,9 +31,9 @@ stages:
     steps:
       - sh: |
           echo "=== Target servers ==="
-          cat .github/workflows/examples/servers.txt
+          cat .vdt/workflows/examples/servers.txt
           echo ""
-          echo "Found $(cat .github/workflows/examples/servers.txt | wc -l) servers in inventory."
+          echo "Found $(cat .vdt/workflows/examples/servers.txt | wc -l) servers in inventory."
 
   - name: Pre-deploy Checks
     steps:
@@ -51,9 +51,9 @@ stages:
     steps:
       - sh: |
           echo "=== Backing up current deployment ==="
-          cat .github/workflows/examples/version.txt
+          cat .vdt/workflows/examples/version.txt
           echo "Snapshotting current pods..."
-          echo "Backup saved to s3://backups/staging/$(cat .github/workflows/examples/version.txt)"
+          echo "Backup saved to s3://backups/staging/$(cat .vdt/workflows/examples/version.txt)"
           echo "Backup complete."
 
   - name: Pull Image
@@ -61,7 +61,7 @@ stages:
       - sh: |
           echo "=== Pulling Docker image ==="
           echo "Registry: registry.internal"
-          echo "Image: my-app:$(cat .github/workflows/examples/version.txt)"
+          echo "Image: my-app:$(cat .vdt/workflows/examples/version.txt)"
           echo "Pulling..."
           echo "Image pulled successfully."
 
@@ -91,7 +91,7 @@ stages:
     steps:
       - sh: |
           echo "=== Deployment Summary ==="
-          echo "Version : $(cat .github/workflows/examples/version.txt)"
+          echo "Version : $(cat .vdt/workflows/examples/version.txt)"
           echo "Env     : staging"
           echo "Nodes   : 3/3 updated"
           echo "Status  : SUCCESS"

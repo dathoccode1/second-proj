@@ -1,4 +1,4 @@
-﻿runner: jenkins-jenkins-agent
+runner: jenkins-jenkins-agent
 
 trigger:
   push:
@@ -34,10 +34,10 @@ stages:
     steps:
       - sh: |
           echo "=== App Configuration ==="
-          cat .github/workflows/examples/app.config
+          cat .vdt/workflows/examples/app.config
           echo ""
           echo "=== Latest Changes ==="
-          cat .github/workflows/examples/changelog.txt
+          cat .vdt/workflows/examples/changelog.txt
 
   - name: Validate Environment
     steps:
@@ -59,7 +59,7 @@ stages:
     steps:
       - sh: |
           echo "=== Restoring Gradle cache ==="
-          echo "Cache key: gradle-$(cat .github/workflows/examples/version.txt)-$(date +%Y%m%d)"
+          echo "Cache key: gradle-$(cat .vdt/workflows/examples/version.txt)-$(date +%Y%m%d)"
           echo "Checking cache store..."
           echo "Cache hit: ~/.gradle/caches/modules-2 (1.2GB)"
           echo "Cache restored successfully."
@@ -117,7 +117,7 @@ stages:
         steps:
           - sh: |
               echo "=== Dependency vulnerability scan ==="
-              cat .github/workflows/examples/dependencies.txt
+              cat .vdt/workflows/examples/dependencies.txt
               echo ""
               echo "Scanning 7 dependencies against NVD database..."
               echo "  spring-boot:3.2.1       - no known CVEs"
@@ -136,7 +136,7 @@ stages:
         steps:
           - sh: |
               echo "=== Running Unit Tests ==="
-              cat .github/workflows/examples/test-report.txt
+              cat .vdt/workflows/examples/test-report.txt
               echo ""
               echo "> Task :test"
               echo "BUILD SUCCESSFUL"
@@ -196,7 +196,7 @@ stages:
       - sh: |
           echo "=== Building application JAR ==="
           echo "> Task :bootJar"
-          echo "  Assembling build/libs/my-app-$(cat .github/workflows/examples/version.txt).jar..."
+          echo "  Assembling build/libs/my-app-$(cat .vdt/workflows/examples/version.txt).jar..."
           echo "  Including 142 classes"
           echo "  Including 18 resources"
           echo "  Including 7 dependencies"
@@ -209,7 +209,7 @@ stages:
       - sh: |
           echo "=== Building Docker image ==="
           echo "FROM eclipse-temurin:21-jre-alpine"
-          echo "COPY build/libs/my-app-$(cat .github/workflows/examples/version.txt).jar app.jar"
+          echo "COPY build/libs/my-app-$(cat .vdt/workflows/examples/version.txt).jar app.jar"
           echo ""
           echo "Step 1/5 : FROM eclipse-temurin:21-jre-alpine"
           echo "Step 2/5 : RUN addgroup -S appgroup && adduser -S appuser -G appgroup"
@@ -218,13 +218,13 @@ stages:
           echo "Step 5/5 : ENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]"
           echo ""
           echo "Successfully built a3f9c28d11b4"
-          echo "Successfully tagged my-app:$(cat .github/workflows/examples/version.txt)"
+          echo "Successfully tagged my-app:$(cat .vdt/workflows/examples/version.txt)"
 
   - name: Push Image
     steps:
       - sh: |
           echo "=== Pushing image to registry ==="
-          echo "Pushing my-app:$(cat .github/workflows/examples/version.txt) to registry.internal..."
+          echo "Pushing my-app:$(cat .vdt/workflows/examples/version.txt) to registry.internal..."
           echo "  Pushing layer sha256:a1b2c3... - pushed"
           echo "  Pushing layer sha256:d4e5f6... - pushed"
           echo "  Pushing layer sha256:g7h8i9... - pushed"
@@ -254,7 +254,7 @@ stages:
         steps:
           - sh: |
               echo "=== Changes included in this build ==="
-              cat .github/workflows/examples/changelog.txt | head -20
+              cat .vdt/workflows/examples/changelog.txt | head -20
               echo "..."
 
   - name: Notify QA
@@ -262,7 +262,7 @@ stages:
       - sh: |
           echo "=== Notifying QA team ==="
           echo "Build artifacts are ready for QA:"
-          echo "  Image : my-app:$(cat .github/workflows/examples/version.txt)"
+          echo "  Image : my-app:$(cat .vdt/workflows/examples/version.txt)"
           echo "  Branch: $gitRef"
           echo "  Tests : 79/79 passed"
           echo "  Cover : 91.8%"
@@ -271,7 +271,7 @@ stages:
 finally:
   - sh: |
       echo "=== CI pipeline complete ==="
-      echo "Version : $(cat .github/workflows/examples/version.txt)"
+      echo "Version : $(cat .vdt/workflows/examples/version.txt)"
       echo "Result  : $BUILD_RESULT"
       echo "Cleaning up workspace..."
       echo "Done."
